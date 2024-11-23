@@ -15,6 +15,7 @@ type MergeRequestData struct {
 	Title        string `json:"title"`
 	HasConflicts bool   `json:"has_conflicts"`
 	Description  string `json:"description"`
+	Url          string `json:"web_url"`
 }
 
 func GetProjectId(projectName string) (int, error) {

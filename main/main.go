@@ -55,69 +55,80 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI, reviewerFunc reviewers.GetRe
 		}
 	}()
 
-	if update.Message == nil {
+	// движемся дальше только если бота тегнули в сообщении
+	if update.Message == nil || !strings.Contains(update.Message.Text, bot.Self.UserName) {
 		return
 	}
 
-	if strings.Contains(update.Message.Text, bot.Self.UserName) {
-		fmt.Println("[%s] %s", update.Message.From.UserName, update.Message.Text)
+	fmt.Println("[%s] %s", update.Message.From.UserName, update.Message.Text)
 
-		//TODO: что за параметр -1?
-		urls := xurls.Strict.FindAllString(update.Message.Text, -1)
+	//TODO: что за параметр -1?
+	urls := xurls.Strict.FindAllString(update.Message.Text, -1)
 
-		fmt.Println("urls", urls)
+	if len(urls) == 0 {
+		sendNewMessage("Необходимо добавить ссылку на merge request", bot, update)
+		return
+	}
 
-		if len(urls) == 0 {
-			sendNewMessage("Необходимо добавить ссылку на merge request", bot, update)
-			return
-		}
+	mergeRequestDataStorage := make([]requests.MergeRequestData, 0, len(urls))
 
-		globalMsg := "Требуется ревью:"
-
-		for _, url := range urls {
-			projectName, mergeRequestId, parseErr := parser.ParseGitlabURL(url)
-			if parseErr != nil {
-				sendNewMessage(parseErr.Error(), bot, update)
-				return
-			}
-
-			//TODO: projectId - неизменяемая информация, поэтому надо уметь результат этой ручки мемоизировать
-			projectId, err := requests.GetProjectId(projectName)
-			fmt.Println("projectId", projectId)
-			if err != nil {
-				sendNewMessage("Что-то пошло не так: "+err.Error(), bot, update)
-				return
-			}
-
-			mergeRequestData, err := requests.GetMergeRequestData(projectId, mergeRequestId)
-			if err != nil {
-				sendNewMessage("Что-то пошло не так: "+err.Error(), bot, update)
-				return
-			}
-
-			if mergeRequestData.HasConflicts {
-				msg := fmt.Sprintf("Для начала нужно пофиксить <a href=\"%s\">конфликты</a>", url)
-				sendNewMessage(msg, bot, update)
-				return
-			}
-
-			globalMsg += "\n" + fmt.Sprintf("<a href=\"%s\">%s</a>", url, mergeRequestData.Title)
-		}
-
-		reviewersList, err := reviewerFunc(update.Message.Chat.ID)
+	for _, url := range urls {
+		mergeRequestData, err := getMergeRequestDataByUrl(url)
 		if err != nil {
 			sendNewMessage("Что-то пошло не так: "+err.Error(), bot, update)
 			return
 		}
 
-		globalMsg += "\nРевьюеры: "
-
-		for _, reviewer := range reviewersList {
-			globalMsg += "@" + reviewer.User.UserName + " "
+		if mergeRequestData.HasConflicts {
+			msg := fmt.Sprintf("Для начала нужно пофиксить <a href=\"%s\">конфликты</a>", url)
+			sendNewMessage(msg, bot, update)
+			return
 		}
 
-		sendNewMessage(globalMsg, bot, update)
+		mergeRequestDataStorage = append(mergeRequestDataStorage, mergeRequestData)
 	}
+
+	reviewersList, err := reviewerFunc(update.Message.Chat.ID)
+	if err != nil {
+		sendNewMessage("Что-то пошло не так: "+err.Error(), bot, update)
+		return
+	}
+
+	message := generateMessageText(mergeRequestDataStorage, reviewersList)
+	sendNewMessage(message, bot, update)
+}
+
+func generateMessageText(data []requests.MergeRequestData, reviewerList []tg.ChatMember) string {
+	msg := "Требуется ревью:"
+	for _, dataEntity := range data {
+		msg += "\n" + fmt.Sprintf("<a href=\"%s\">%s</a>", dataEntity.Url, dataEntity.Title)
+	}
+
+	msg += "\nРевьюеры: "
+	for _, reviewer := range reviewerList {
+		msg += "@" + reviewer.User.UserName + " "
+	}
+	return msg
+}
+
+func getMergeRequestDataByUrl(url string) (requests.MergeRequestData, error) {
+	projectName, mergeRequestId, parseErr := parser.ParseGitlabURL(url)
+	if parseErr != nil {
+		return requests.MergeRequestData{}, parseErr
+	}
+
+	//TODO: projectId - неизменяемая информация, поэтому надо уметь результат этой ручки мемоизировать
+	projectId, err := requests.GetProjectId(projectName)
+	if err != nil {
+		return requests.MergeRequestData{}, err
+	}
+
+	mergeRequestData, err := requests.GetMergeRequestData(projectId, mergeRequestId)
+	if err != nil {
+		return requests.MergeRequestData{}, err
+	}
+
+	return mergeRequestData, nil
 }
 
 func sendNewMessage(message string, bot *tg.BotAPI, update tg.Update) {
