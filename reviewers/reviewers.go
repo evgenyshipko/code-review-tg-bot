@@ -14,6 +14,7 @@ type ReviewerIds map[string]int64
 
 type GetChatMemberType func(config tg.GetChatMemberConfig) (tg.ChatMember, error)
 
+// TODO: тяжелая функция, тоже можно мемоизовать, НО! с инвалидацией по времени, т.к. может изменяться список учстников
 func getChatMembers(chatId int64, getChatMember GetChatMemberType) ([]tg.ChatMember, error) {
 
 	reviewersIdsStr := os.Getenv("REVIEW_PARTICIPANTS_IDS")
@@ -50,12 +51,6 @@ func getChatMembers(chatId int64, getChatMember GetChatMemberType) ([]tg.ChatMem
 		return []tg.ChatMember{}, fmt.Errorf("Список участников чата пустой")
 	}
 
-	fmt.Printf("Участники чата:\n")
-	for _, member := range members {
-		fmt.Printf("- %s (%d) %s\n", member.User.FirstName, member.User.ID, member.Status)
-		fmt.Println(member.User)
-	}
-
 	return members, nil
 }
 
@@ -63,15 +58,18 @@ type userIdType int64
 
 type usedMembers map[userIdType]bool
 
-type GetReviewerFunc func(chatId int64) ([]tg.ChatMember, error)
+type GetReviewerFunc func(chatId int64, changedRowsCount int) ([]tg.ChatMember, error)
 
-func MakeGetReviewerFuncWithMemo(getChatMember GetChatMemberType, reviewerCount int) GetReviewerFunc {
+func MakeGetReviewerFuncWithMemo(getChatMember GetChatMemberType) GetReviewerFunc {
 
 	memo := make(map[int64]usedMembers)
 
-	return func(chatId int64) ([]tg.ChatMember, error) {
+	return func(chatId int64, changedRowsCount int) ([]tg.ChatMember, error) {
 
-		fmt.Println("\n\n\nMMMMMemo", memo)
+		reviewerCount := 2
+		if changedRowsCount < 20 {
+			reviewerCount = 1
+		}
 
 		chatMembers, err := getChatMembers(chatId, getChatMember)
 		if err != nil {
@@ -106,7 +104,7 @@ func MakeGetReviewerFuncWithMemo(getChatMember GetChatMemberType, reviewerCount 
 			if memo[chatId][userIdType(randomMember.User.ID)] {
 				continue
 			}
-			
+
 			memo[chatId][userIdType(randomMember.User.ID)] = true
 			reviewers = append(reviewers, randomMember)
 		}

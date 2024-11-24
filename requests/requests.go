@@ -79,3 +79,78 @@ func GetMergeRequestData(projectID int, mergeRequestId int) (MergeRequestData, e
 
 	return data, nil
 }
+
+type MergeRequestCommit struct {
+	ID string `json:"id"`
+}
+
+func GetMergeRequestCommits(projectID int, mergeRequestId int) ([]MergeRequestCommit, error) {
+
+	gitlabDomain := os.Getenv("GITLAB_DOMAIN")
+	gitlabToken := os.Getenv("GITLAB_TOKEN")
+	url := fmt.Sprintf("https://%s/api/v4/projects/%d/merge_requests/%d/commits", gitlabDomain, projectID, mergeRequestId)
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return []MergeRequestCommit{}, fmt.Errorf("не удалось создать реквест: %s", err)
+	}
+
+	req.Header.Set("PRIVATE-TOKEN", gitlabToken)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+
+	if err != nil {
+		return []MergeRequestCommit{}, fmt.Errorf("не удалось выполнить запрос: %s", err)
+	}
+
+	defer resp.Body.Close()
+
+	var data []MergeRequestCommit
+	err = json.NewDecoder(resp.Body).Decode(&data)
+	if err != nil {
+		return []MergeRequestCommit{}, fmt.Errorf("ошибка декода тела ответа: %s", err)
+	}
+
+	return data, nil
+}
+
+type MergeRequestStats struct {
+	Additions int `json:"additions"`
+	Deletions int `json:"deletions"`
+}
+
+type CommitData struct {
+	Stats MergeRequestStats
+}
+
+func GetCommitData(projectID int, commitId string) (CommitData, error) {
+
+	gitlabDomain := os.Getenv("GITLAB_DOMAIN")
+	gitlabToken := os.Getenv("GITLAB_TOKEN")
+	url := fmt.Sprintf("https://%s/api/v4/projects/%d/repository/commits/%s", gitlabDomain, projectID, commitId)
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return CommitData{}, fmt.Errorf("не удалось создать реквест: %s", err)
+	}
+
+	req.Header.Set("PRIVATE-TOKEN", gitlabToken)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+
+	if err != nil {
+		return CommitData{}, fmt.Errorf("не удалось выполнить запрос: %s", err)
+	}
+
+	defer resp.Body.Close()
+
+	var data CommitData
+	err = json.NewDecoder(resp.Body).Decode(&data)
+	if err != nil {
+		return CommitData{}, fmt.Errorf("ошибка декода тела ответа: %s", err)
+	}
+
+	return data, nil
+}

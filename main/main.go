@@ -10,6 +10,7 @@ import (
 	"github.com/mvdan/xurls"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -37,7 +38,7 @@ func main() {
 	u.Timeout = 60
 	updates := bot.GetUpdatesChan(u)
 
-	getReviewers := reviewers.MakeGetReviewerFuncWithMemo(bot.GetChatMember, 2)
+	getReviewers := reviewers.MakeGetReviewerFuncWithMemo(bot.GetChatMember)
 
 	for update := range updates {
 		mainLoopFunc(update, bot, getReviewers)
@@ -46,6 +47,7 @@ func main() {
 }
 
 //TODO: настроить единое логгирование
+//TODO: валидация енвов при запуске
 
 func mainLoopFunc(update tg.Update, bot *tg.BotAPI, reviewerFunc reviewers.GetReviewerFunc) {
 	defer func() {
@@ -70,7 +72,8 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI, reviewerFunc reviewers.GetRe
 		return
 	}
 
-	mergeRequestDataStorage := make([]requests.MergeRequestData, 0, len(urls))
+	mergeRequestDataStorage := make([]MergeRequestDataExtended, 0, len(urls))
+	totalRowsChanged := 0
 
 	for _, url := range urls {
 		mergeRequestData, err := getMergeRequestDataByUrl(url)
@@ -86,9 +89,20 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI, reviewerFunc reviewers.GetRe
 		}
 
 		mergeRequestDataStorage = append(mergeRequestDataStorage, mergeRequestData)
+		mergeRequestRowsChanged := mergeRequestData.Deletions + mergeRequestData.Additions
+
+		maxRows, err := strconv.Atoi(os.Getenv("MAXIMUM_ROWS_CHANGED"))
+
+		if err == nil && mergeRequestRowsChanged > maxRows {
+			msg := fmt.Sprintf("В <a href=\"%s\">мр-е</a> слишком много строк (>%d). Нужно разбить МР на несколько частей для нормального восприятия ревьюером", url, maxRows)
+			sendNewMessage(msg, bot, update)
+			return
+		}
+
+		totalRowsChanged += mergeRequestRowsChanged
 	}
 
-	reviewersList, err := reviewerFunc(update.Message.Chat.ID)
+	reviewersList, err := reviewerFunc(update.Message.Chat.ID, totalRowsChanged)
 	if err != nil {
 		sendNewMessage("Что-то пошло не так: "+err.Error(), bot, update)
 		return
@@ -98,10 +112,13 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI, reviewerFunc reviewers.GetRe
 	sendNewMessage(message, bot, update)
 }
 
-func generateMessageText(data []requests.MergeRequestData, reviewerList []tg.ChatMember) string {
+func generateMessageText(data []MergeRequestDataExtended, reviewerList []tg.ChatMember) string {
 	msg := "Требуется ревью:"
 	for _, dataEntity := range data {
 		msg += "\n" + fmt.Sprintf("<a href=\"%s\">%s</a>", dataEntity.Url, dataEntity.Title)
+		if dataEntity.Additions > 0 && dataEntity.Deletions > 0 {
+			msg += "\n" + fmt.Sprintf("Размер: +%d -%d", dataEntity.Additions, dataEntity.Deletions)
+		}
 	}
 
 	msg += "\nРевьюеры: "
@@ -111,24 +128,51 @@ func generateMessageText(data []requests.MergeRequestData, reviewerList []tg.Cha
 	return msg
 }
 
-func getMergeRequestDataByUrl(url string) (requests.MergeRequestData, error) {
+type MergeRequestDataExtended struct {
+	requests.MergeRequestData
+	requests.MergeRequestStats
+}
+
+func getMergeRequestDataByUrl(url string) (MergeRequestDataExtended, error) {
 	projectName, mergeRequestId, parseErr := parser.ParseGitlabURL(url)
 	if parseErr != nil {
-		return requests.MergeRequestData{}, parseErr
+		return MergeRequestDataExtended{}, parseErr
 	}
 
 	//TODO: projectId - неизменяемая информация, поэтому надо уметь результат этой ручки мемоизировать
 	projectId, err := requests.GetProjectId(projectName)
 	if err != nil {
-		return requests.MergeRequestData{}, err
+		return MergeRequestDataExtended{}, err
 	}
 
 	mergeRequestData, err := requests.GetMergeRequestData(projectId, mergeRequestId)
 	if err != nil {
-		return requests.MergeRequestData{}, err
+		return MergeRequestDataExtended{}, err
 	}
 
-	return mergeRequestData, nil
+	stats, err := GetMergeRequestStats(projectId, mergeRequestId)
+	if err != nil {
+		return MergeRequestDataExtended{mergeRequestData, requests.MergeRequestStats{}}, err
+	}
+
+	return MergeRequestDataExtended{mergeRequestData, stats}, nil
+}
+
+func GetMergeRequestStats(projectID int, mergeRequestId int) (requests.MergeRequestStats, error) {
+	commits, err := requests.GetMergeRequestCommits(projectID, mergeRequestId)
+	if err != nil {
+		return requests.MergeRequestStats{}, err
+	}
+	mergeRequestStats := requests.MergeRequestStats{}
+	for _, commit := range commits {
+		commitStats, err := requests.GetCommitData(projectID, commit.ID)
+		if err != nil {
+			return requests.MergeRequestStats{}, err
+		}
+		mergeRequestStats.Additions += commitStats.Stats.Additions
+		mergeRequestStats.Deletions += commitStats.Stats.Deletions
+	}
+	return mergeRequestStats, nil
 }
 
 func sendNewMessage(message string, bot *tg.BotAPI, update tg.Update) {
