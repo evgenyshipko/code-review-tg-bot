@@ -1,9 +1,9 @@
 package main
 
 import (
-	"code-review-tg-bot/parser"
-	"code-review-tg-bot/requests"
-	"code-review-tg-bot/reviewers"
+	"code-review-tg-bot/src/parser"
+	"code-review-tg-bot/src/requests"
+	"code-review-tg-bot/src/reviewers"
 	"fmt"
 	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/joho/godotenv"
@@ -48,6 +48,7 @@ func main() {
 
 //TODO: настроить единое логгирование
 //TODO: валидация енвов при запуске
+//TODO: избавиться от переменной GITLAB_DOMAIN?
 
 func mainLoopFunc(update tg.Update, bot *tg.BotAPI, reviewerFunc reviewers.GetReviewerFunc) {
 	defer func() {
