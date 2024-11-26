@@ -1,26 +1,13 @@
-FROM hub.zxz.su/ugc-common/doci-hub/golang:bookworm-1.23.0-9220db5a AS builder
-ARG TZ="Europe/Moscow"
-ENV TZ=${TZ}
-
-ARG GO111MODULE="on"
-ARG GOARCH="amd64"
-ARG GOGC="off"
-ARG GOOS="linux"
-
+FROM golang:1.22 as builder
+RUN apt install ca-certificates
+RUN mkdir /app
+COPY . /app
 WORKDIR /app
-COPY . .
-RUN go mod download
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o server ./src/main
 
-RUN go build -o /myapp ./src/main
-
-
-FROM hub.zxz.su/ugc-common/doci-hub/debian:bookworm-slim-f8c55d57 as final
-ARG TZ="Europe/Moscow"
-ENV TZ=${TZ}
-
-COPY --from=builder /usr/share/zoneinfo/${TZ} /usr/share/zoneinfo/${TZ}
-COPY --from=builder /myapp /myapp
-
-WORKDIR /app
-CMD ["/myapp"]
-
+FROM scratch
+ENV PORT=8080
+COPY --from=builder /app/server /
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+EXPOSE 8080
+CMD ["/server"]
