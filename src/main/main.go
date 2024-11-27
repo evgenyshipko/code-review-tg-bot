@@ -49,6 +49,10 @@ func main() {
 //TODO: настроить единое логгирование
 //TODO: валидация енвов при запуске
 //TODO: избавиться от переменной GITLAB_DOMAIN?
+//TODO: доступ только разрешенным разработчикам
+//TODO: исключения для отдельных чатов?
+//TODO: что делать, если человек в отпуске?
+//TODO: кеширование ручек/истории ревью во внешнем источнике (редис)
 
 func mainLoopFunc(update tg.Update, bot *tg.BotAPI, reviewerFunc reviewers.GetReviewerFunc) {
 	defer func() {
