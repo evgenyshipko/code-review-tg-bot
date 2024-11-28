@@ -54,17 +54,15 @@ func getChatMembers(chatId int64, getChatMember GetChatMemberType) ([]tg.ChatMem
 	return members, nil
 }
 
-type userIdType int64
+type usedMembers map[int64]bool
 
-type usedMembers map[userIdType]bool
-
-type GetReviewerFunc func(chatId int64, changedRowsCount int) ([]tg.ChatMember, error)
+type GetReviewerFunc func(chatId int64, authorId int64, changedRowsCount int) ([]tg.ChatMember, error)
 
 func MakeGetReviewerFuncWithMemo(getChatMember GetChatMemberType) GetReviewerFunc {
 
 	memo := make(map[int64]usedMembers)
 
-	return func(chatId int64, changedRowsCount int) ([]tg.ChatMember, error) {
+	return func(chatId int64, authorId int64, changedRowsCount int) ([]tg.ChatMember, error) {
 
 		reviewerCount := 2
 		if changedRowsCount < 20 {
@@ -81,31 +79,34 @@ func MakeGetReviewerFuncWithMemo(getChatMember GetChatMemberType) GetReviewerFun
 		vacantMembers := make([]tg.ChatMember, 0, len(chatMembers))
 
 		for _, member := range chatMembers {
-			if !usedMemberIds[userIdType(member.User.ID)] {
+			if !usedMemberIds[member.User.ID] {
 				vacantMembers = append(vacantMembers, member)
 			}
 		}
 
 		// переобновляем хранилище, если свободных ревьюверов не хватает
 		if len(vacantMembers) < reviewerCount {
-			memo[chatId] = map[userIdType]bool{}
+			memo[chatId] = usedMembers{}
 			vacantMembers = chatMembers
 		}
+
+		if memo[chatId] == nil {
+			memo[chatId] = usedMembers{}
+		}
+
+		// помечаем, что автора сообщения нельзя самого же  добавить в ревью
+		memo[chatId][authorId] = true
 
 		// выбираем случайных ревьюверов из свободных
 		reviewers := make([]tg.ChatMember, 0, len(vacantMembers))
 		for len(reviewers) < reviewerCount {
 			randomMember := vacantMembers[rand.Intn(len(vacantMembers))]
 
-			if memo[chatId] == nil {
-				memo[chatId] = usedMembers{}
-			}
-
-			if memo[chatId][userIdType(randomMember.User.ID)] {
+			if memo[chatId][randomMember.User.ID] {
 				continue
 			}
 
-			memo[chatId][userIdType(randomMember.User.ID)] = true
+			memo[chatId][randomMember.User.ID] = true
 			reviewers = append(reviewers, randomMember)
 		}
 

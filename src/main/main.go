@@ -54,6 +54,8 @@ func main() {
 //TODO: что делать, если человек в отпуске?
 //TODO: кеширование ручек/истории ревью во внешнем источнике (редис)
 
+// FIXME: бот назначает в ревьюверы пользователя, который его вызвал
+
 func mainLoopFunc(update tg.Update, bot *tg.BotAPI, reviewerFunc reviewers.GetReviewerFunc) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -107,7 +109,7 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI, reviewerFunc reviewers.GetRe
 		totalRowsChanged += mergeRequestRowsChanged
 	}
 
-	reviewersList, err := reviewerFunc(update.Message.Chat.ID, totalRowsChanged)
+	reviewersList, err := reviewerFunc(update.Message.Chat.ID, update.Message.From.ID, totalRowsChanged)
 	if err != nil {
 		sendNewMessage("Что-то пошло не так: "+err.Error(), bot, update)
 		return
