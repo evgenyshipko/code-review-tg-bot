@@ -2,15 +2,13 @@ package main
 
 import (
 	"code-review-tg-bot/src/logger"
-	"code-review-tg-bot/src/parser"
-	"code-review-tg-bot/src/requests"
+	"code-review-tg-bot/src/mergeRequest"
 	"code-review-tg-bot/src/reviewers"
 	"fmt"
 	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/joho/godotenv"
 	"github.com/mvdan/xurls"
 	"os"
-	"runtime"
 	"strconv"
 	"strings"
 )
@@ -57,22 +55,10 @@ func main() {
 //TODO: реализовать команду отпуска
 //TODO: кеширование ручек/истории ревью во внешнем источнике (редис)
 
-func getStackTraceAsSlice() []string {
-	buf := make([]byte, 1024)
-	for {
-		n := runtime.Stack(buf, false)
-		if n < len(buf) {
-			// Разбиваем трассировку стека на строки
-			return strings.Split(string(buf[:n]), "\n")
-		}
-		buf = make([]byte, len(buf)*2)
-	}
-}
-
 func mainLoopFunc(update tg.Update, bot *tg.BotAPI) {
 	defer func() {
 		if r := recover(); r != nil {
-			logger.Error("Паника перехвачена", "error", r, "stack", getStackTraceAsSlice())
+			logger.Error("Паника перехвачена", "error", r, "stack", logger.GetStackTraceAsSlice())
 
 			sendNewMessage(fmt.Sprintf("Что-то пошло не так: %s", r), bot, update)
 		}
@@ -93,11 +79,11 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI) {
 		return
 	}
 
-	mergeRequestDataStorage := make([]MergeRequestDataExtended, 0, len(urls))
+	mergeRequestDataStorage := make([]mergeRequest.DataExtended, 0, len(urls))
 	totalRowsChanged := 0
 
 	for _, url := range urls {
-		mergeRequestData, err := getMergeRequestDataByUrl(url)
+		mergeRequestData, err := mergeRequest.GetDataByUrl(url)
 		if err != nil {
 			logger.Error(err.Error())
 			sendNewMessage("Что-то пошло не так: "+err.Error(), bot, update)
@@ -124,7 +110,8 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI) {
 		totalRowsChanged += mergeRequestRowsChanged
 	}
 
-	reviewersList, err := reviewers.GetReviewers(update.Message.Chat.ID, update.Message.From.ID, totalRowsChanged, bot.GetChatMember)
+	reviewersCount := reviewers.GetReviewersCount(totalRowsChanged)
+	reviewersList, err := reviewers.GetReviewers(update.Message.Chat.ID, update.Message.From.ID, reviewersCount, bot.GetChatMember)
 	if err != nil {
 		logger.Error(err.Error())
 		sendNewMessage("Что-то пошло не так: "+err.Error(), bot, update)
@@ -135,7 +122,7 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI) {
 	sendNewMessage(message, bot, update)
 }
 
-func generateMessageText(data []MergeRequestDataExtended, reviewerList []tg.ChatMember) string {
+func generateMessageText(data []mergeRequest.DataExtended, reviewerList []tg.ChatMember) string {
 	msg := "Требуется ревью:"
 	for _, dataEntity := range data {
 		msg += "\n" + fmt.Sprintf("<a href=\"%s\">%s</a>", dataEntity.Url, dataEntity.Title)
@@ -151,59 +138,12 @@ func generateMessageText(data []MergeRequestDataExtended, reviewerList []tg.Chat
 	return msg
 }
 
-type MergeRequestDataExtended struct {
-	requests.MergeRequestData
-	requests.MergeRequestStats
-}
-
-func getMergeRequestDataByUrl(url string) (MergeRequestDataExtended, error) {
-	projectName, mergeRequestId, parseErr := parser.ParseGitlabURL(url)
-	if parseErr != nil {
-		return MergeRequestDataExtended{}, parseErr
-	}
-
-	//TODO: projectId - неизменяемая информация, поэтому надо уметь результат этой ручки мемоизировать
-	projectId, err := requests.GetProjectId(projectName)
-	if err != nil {
-		return MergeRequestDataExtended{}, err
-	}
-
-	mergeRequestData, err := requests.GetMergeRequestData(projectId, mergeRequestId)
-	if err != nil {
-		return MergeRequestDataExtended{}, err
-	}
-
-	stats, err := getMergeRequestStats(projectId, mergeRequestId)
-	if err != nil {
-		return MergeRequestDataExtended{mergeRequestData, requests.MergeRequestStats{}}, err
-	}
-
-	return MergeRequestDataExtended{mergeRequestData, stats}, nil
-}
-
-func getMergeRequestStats(projectID int, mergeRequestId int) (requests.MergeRequestStats, error) {
-	commits, err := requests.GetMergeRequestCommits(projectID, mergeRequestId)
-	if err != nil {
-		return requests.MergeRequestStats{}, err
-	}
-	mergeRequestStats := requests.MergeRequestStats{}
-	for _, commit := range commits {
-		commitStats, err := requests.GetCommitData(projectID, commit.ID)
-		if err != nil {
-			return requests.MergeRequestStats{}, err
-		}
-		mergeRequestStats.Additions += commitStats.Stats.Additions
-		mergeRequestStats.Deletions += commitStats.Stats.Deletions
-	}
-	return mergeRequestStats, nil
-}
-
 func sendNewMessage(message string, bot *tg.BotAPI, update tg.Update) {
 	msg := tg.NewMessage(update.Message.Chat.ID, message)
 	msg.ParseMode = tg.ModeHTML
 	msg.ReplyToMessageID = update.Message.MessageID
 	_, err := bot.Send(msg)
 	if err != nil {
-		logger.Error("Сообщение не отправлено", err)
+		logger.Error("Ошибка отправки сообщения", "Сообщение не отправлено", err.Error())
 	}
 }

@@ -3,6 +3,8 @@ package logger
 import (
 	"fmt"
 	"log/slog"
+	"runtime"
+	"strings"
 )
 
 var Logger = newLogger()
@@ -44,4 +46,16 @@ func Debug(msg string, args ...any) {
 
 func Warn(msg string, args ...any) {
 	Logger.logger.Warn(msg, args...)
+}
+
+func GetStackTraceAsSlice() []string {
+	buf := make([]byte, 1024)
+	for {
+		n := runtime.Stack(buf, false)
+		if n < len(buf) {
+			// Разбиваем трассировку стека на строки
+			return strings.Split(string(buf[:n]), "\n")
+		}
+		buf = make([]byte, len(buf)*2)
+	}
 }

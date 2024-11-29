@@ -63,7 +63,7 @@ type GetReviewerFunc func(chatId int64, authorId int64, changedRowsCount int) ([
 
 type ReviewersStorage map[int64]usedMembersType
 
-func getReviewersCount(changedRows int) (reviewerCount int) {
+func GetReviewersCount(changedRows int) (reviewerCount int) {
 	reviewerCount = 2
 	if changedRows < 20 {
 		reviewerCount = 1
@@ -84,9 +84,7 @@ func getChatUsedReviewersData(chatId int64) *usedMembersType {
 	return &usedMembers
 }
 
-func GetReviewers(chatId int64, authorId int64, changedRowsCount int, getChatMember GetChatMemberType) ([]tg.ChatMember, error) {
-
-	reviewerCount := getReviewersCount(changedRowsCount)
+func GetReviewers(chatId int64, authorId int64, reviewerCount int, getChatMember GetChatMemberType) ([]tg.ChatMember, error) {
 
 	chatMembers, err := getChatMembers(chatId, getChatMember)
 	if err != nil {
