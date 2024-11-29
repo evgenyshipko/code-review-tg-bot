@@ -4,6 +4,7 @@ import (
 	"code-review-tg-bot/src/logger"
 	"code-review-tg-bot/src/storage"
 	"encoding/json"
+	"errors"
 	"fmt"
 	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"math/rand"
@@ -111,6 +112,10 @@ func GetReviewers(chatId int64, authorId int64, changedRowsCount int, getChatMem
 	}
 
 	logger.Debug("MEMBERS", "usedMemberIds", usedMemberIds, "vacantMembers", vacantMembers)
+
+	if len(vacantMembers) == 0 {
+		return []tg.ChatMember{}, errors.New("Кажется, что в данном чате нет пользователей, которые могут осуществлять ревью")
+	}
 
 	// выбираем случайных ревьюверов из свободных
 	reviewers := make([]tg.ChatMember, 0, len(vacantMembers))
