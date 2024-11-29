@@ -1,13 +1,15 @@
 package reviewers
 
 import (
+	"code-review-tg-bot/src/logger"
+	"code-review-tg-bot/src/storage"
 	"encoding/json"
 	"fmt"
 	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"log"
 	"math/rand"
 	"os"
 	"slices"
+	"strconv"
 )
 
 type ReviewerIds map[string]int64
@@ -28,7 +30,7 @@ func getChatMembers(chatId int64, getChatMember GetChatMemberType) ([]tg.ChatMem
 
 	members := []tg.ChatMember{}
 
-	// TODO: распараллелить
+	// RND: распараллелить
 	for _, reviewerId := range reviewerIdsMap {
 		member, err := getChatMember(tg.GetChatMemberConfig{
 			ChatConfigWithUser: tg.ChatConfigWithUser{
@@ -38,7 +40,7 @@ func getChatMembers(chatId int64, getChatMember GetChatMemberType) ([]tg.ChatMem
 		})
 		if err != nil {
 			errStr := fmt.Sprintf("%s chatId:%d, userId: %d", err.Error(), chatId, reviewerId)
-			log.Printf(errStr)
+			logger.Error(errStr)
 			continue
 		}
 
@@ -54,65 +56,78 @@ func getChatMembers(chatId int64, getChatMember GetChatMemberType) ([]tg.ChatMem
 	return members, nil
 }
 
-type usedMembers map[int64]bool
+type usedMembersType map[int64]bool
 
 type GetReviewerFunc func(chatId int64, authorId int64, changedRowsCount int) ([]tg.ChatMember, error)
 
-func MakeGetReviewerFuncWithMemo(getChatMember GetChatMemberType) GetReviewerFunc {
+type ReviewersStorage map[int64]usedMembersType
 
-	memo := make(map[int64]usedMembers)
-
-	return func(chatId int64, authorId int64, changedRowsCount int) ([]tg.ChatMember, error) {
-
-		reviewerCount := 2
-		if changedRowsCount < 20 {
-			reviewerCount = 1
-		}
-
-		chatMembers, err := getChatMembers(chatId, getChatMember)
-		if err != nil {
-			return []tg.ChatMember{}, err
-		}
-
-		usedMemberIds := memo[chatId]
-
-		vacantMembers := make([]tg.ChatMember, 0, len(chatMembers))
-
-		for _, member := range chatMembers {
-			if !usedMemberIds[member.User.ID] {
-				vacantMembers = append(vacantMembers, member)
-			}
-		}
-
-		// переобновляем хранилище, если свободных ревьюверов не хватает
-		if len(vacantMembers) < reviewerCount {
-			memo[chatId] = usedMembers{}
-			vacantMembers = chatMembers
-		}
-
-		if memo[chatId] == nil {
-			memo[chatId] = usedMembers{}
-		}
-
-		// помечаем, что автора сообщения нельзя самого же  добавить в ревью
-		memo[chatId][authorId] = true
-
-		// выбираем случайных ревьюверов из свободных
-		reviewers := make([]tg.ChatMember, 0, len(vacantMembers))
-		for len(reviewers) < reviewerCount {
-			randomMember := vacantMembers[rand.Intn(len(vacantMembers))]
-
-			if memo[chatId][randomMember.User.ID] {
-				continue
-			}
-
-			memo[chatId][randomMember.User.ID] = true
-			reviewers = append(reviewers, randomMember)
-		}
-
-		fmt.Println("vacantMembers", vacantMembers)
-		fmt.Println("reviewers", reviewers)
-
-		return reviewers, nil
+func getReviewersCount(changedRows int) (reviewerCount int) {
+	reviewerCount = 2
+	if changedRows < 20 {
+		reviewerCount = 1
 	}
+	return reviewerCount
+}
+
+func setChatUsedReviewersData(chatId int64, usedMembers *usedMembersType) {
+	storage.Set("chat"+strconv.FormatInt(chatId, 10), &usedMembers)
+}
+
+func getChatUsedReviewersData(chatId int64) *usedMembersType {
+	var usedMembers usedMembersType
+	exists := storage.Get("chat"+strconv.FormatInt(chatId, 10), &usedMembers)
+	if !exists {
+		usedMembers = usedMembersType{}
+	}
+	return &usedMembers
+}
+
+func GetReviewers(chatId int64, authorId int64, changedRowsCount int, getChatMember GetChatMemberType) ([]tg.ChatMember, error) {
+
+	reviewerCount := getReviewersCount(changedRowsCount)
+
+	chatMembers, err := getChatMembers(chatId, getChatMember)
+	if err != nil {
+		return []tg.ChatMember{}, err
+	}
+
+	// usedMembersType - те юзеры, которых не рассматриваем на ревью
+	usedMemberIds := *getChatUsedReviewersData(chatId)
+
+	logger.Debug("LENGTH", "len(chatMembers)-1", len(chatMembers)-1, "len(usedMemberIds)", len(usedMemberIds), "reviewerCount", reviewerCount)
+
+	// если видим, что ревьюверов требуется больше, то сразу сбрасываем usedMemberIds
+	if len(chatMembers)-1-len(usedMemberIds) < reviewerCount {
+		usedMemberIds = usedMembersType{}
+	}
+
+	// vacantMembers - те юзеры, которых рассматриваем на ревью
+	vacantMembers := make([]tg.ChatMember, 0, len(chatMembers))
+	for _, member := range chatMembers {
+		if !usedMemberIds[member.User.ID] && member.User.ID != authorId {
+			vacantMembers = append(vacantMembers, member)
+		}
+	}
+
+	logger.Debug("MEMBERS", "usedMemberIds", usedMemberIds, "vacantMembers", vacantMembers)
+
+	// выбираем случайных ревьюверов из свободных
+	reviewers := make([]tg.ChatMember, 0, len(vacantMembers))
+
+	for len(reviewers) < reviewerCount && (len(reviewers) != len(vacantMembers) || len(reviewers) == 0) {
+		randomMember := vacantMembers[rand.Intn(len(vacantMembers))]
+
+		if usedMemberIds[randomMember.User.ID] {
+			continue
+		}
+
+		usedMemberIds[randomMember.User.ID] = true
+
+		reviewers = append(reviewers, randomMember)
+	}
+
+	setChatUsedReviewersData(chatId, &usedMemberIds)
+
+	return reviewers, nil
 }

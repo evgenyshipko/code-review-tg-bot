@@ -1,6 +1,7 @@
 package main
 
 import (
+	"code-review-tg-bot/src/logger"
 	"code-review-tg-bot/src/parser"
 	"code-review-tg-bot/src/requests"
 	"code-review-tg-bot/src/reviewers"
@@ -8,8 +9,8 @@ import (
 	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/joho/godotenv"
 	"github.com/mvdan/xurls"
-	"log"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 )
@@ -17,7 +18,7 @@ import (
 // initialized before main call
 func init() {
 	if err := godotenv.Load(); err != nil {
-		log.Print("No .env file found")
+		fmt.Println("No .env file found")
 	}
 }
 
@@ -25,41 +26,54 @@ func main() {
 
 	BotToken := os.Getenv("BOT_TOKEN")
 
-	bot, err := tg.NewBotAPI(BotToken)
-	// TODO: законсолить нормально ошибку
+	err := tg.SetLogger(logger.Logger)
 	if err != nil {
+		panic(err)
+	}
+
+	bot, err := tg.NewBotAPI(BotToken)
+	if err != nil {
+		logger.Error(err.Error())
 		panic(err)
 	}
 
 	bot.Debug = true
 
-	// TODO: разобраться что это за настройки и на что влияют
+	// RND: разобраться что это за настройки и на что влияют
 	u := tg.NewUpdate(0)
 	u.Timeout = 60
 	updates := bot.GetUpdatesChan(u)
 
-	getReviewers := reviewers.MakeGetReviewerFuncWithMemo(bot.GetChatMember)
-
+	// RND как работает цикл и причем тут горутины?
 	for update := range updates {
-		mainLoopFunc(update, bot, getReviewers)
+		mainLoopFunc(update, bot)
 	}
 
 }
 
-//TODO: настроить единое логгирование
 //TODO: валидация енвов при запуске
 //TODO: избавиться от переменной GITLAB_DOMAIN?
-//TODO: доступ только разрешенным разработчикам
-//TODO: исключения для отдельных чатов?
-//TODO: что делать, если человек в отпуске?
+//TODO: доступ только разрешенным разработчикам (и админам т.е завести админов)
+//TODO: реализовать команду отпуска
 //TODO: кеширование ручек/истории ревью во внешнем источнике (редис)
 
-// FIXME: бот назначает в ревьюверы пользователя, который его вызвал
+func getStackTraceAsSlice() []string {
+	buf := make([]byte, 1024)
+	for {
+		n := runtime.Stack(buf, false)
+		if n < len(buf) {
+			// Разбиваем трассировку стека на строки
+			return strings.Split(string(buf[:n]), "\n")
+		}
+		buf = make([]byte, len(buf)*2)
+	}
+}
 
-func mainLoopFunc(update tg.Update, bot *tg.BotAPI, reviewerFunc reviewers.GetReviewerFunc) {
+func mainLoopFunc(update tg.Update, bot *tg.BotAPI) {
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Println("Recovered in mainLoopFunc", r)
+			logger.Error("Паника перехвачена", "error", r, "stack", getStackTraceAsSlice())
+
 			sendNewMessage(fmt.Sprintf("Что-то пошло не так: %s", r), bot, update)
 		}
 	}()
@@ -69,9 +83,9 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI, reviewerFunc reviewers.GetRe
 		return
 	}
 
-	fmt.Println("[%s] %s", update.Message.From.UserName, update.Message.Text)
+	logger.Info(fmt.Sprintf("[%s] %s", update.Message.From.UserName, update.Message.Text))
 
-	//TODO: что за параметр -1?
+	//RND: разобраться - что за параметр -1
 	urls := xurls.Strict.FindAllString(update.Message.Text, -1)
 
 	if len(urls) == 0 {
@@ -85,6 +99,7 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI, reviewerFunc reviewers.GetRe
 	for _, url := range urls {
 		mergeRequestData, err := getMergeRequestDataByUrl(url)
 		if err != nil {
+			logger.Error(err.Error())
 			sendNewMessage("Что-то пошло не так: "+err.Error(), bot, update)
 			return
 		}
@@ -109,8 +124,9 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI, reviewerFunc reviewers.GetRe
 		totalRowsChanged += mergeRequestRowsChanged
 	}
 
-	reviewersList, err := reviewerFunc(update.Message.Chat.ID, update.Message.From.ID, totalRowsChanged)
+	reviewersList, err := reviewers.GetReviewers(update.Message.Chat.ID, update.Message.From.ID, totalRowsChanged, bot.GetChatMember)
 	if err != nil {
+		logger.Error(err.Error())
 		sendNewMessage("Что-то пошло не так: "+err.Error(), bot, update)
 		return
 	}
@@ -157,7 +173,7 @@ func getMergeRequestDataByUrl(url string) (MergeRequestDataExtended, error) {
 		return MergeRequestDataExtended{}, err
 	}
 
-	stats, err := GetMergeRequestStats(projectId, mergeRequestId)
+	stats, err := getMergeRequestStats(projectId, mergeRequestId)
 	if err != nil {
 		return MergeRequestDataExtended{mergeRequestData, requests.MergeRequestStats{}}, err
 	}
@@ -165,7 +181,7 @@ func getMergeRequestDataByUrl(url string) (MergeRequestDataExtended, error) {
 	return MergeRequestDataExtended{mergeRequestData, stats}, nil
 }
 
-func GetMergeRequestStats(projectID int, mergeRequestId int) (requests.MergeRequestStats, error) {
+func getMergeRequestStats(projectID int, mergeRequestId int) (requests.MergeRequestStats, error) {
 	commits, err := requests.GetMergeRequestCommits(projectID, mergeRequestId)
 	if err != nil {
 		return requests.MergeRequestStats{}, err
@@ -188,7 +204,6 @@ func sendNewMessage(message string, bot *tg.BotAPI, update tg.Update) {
 	msg.ReplyToMessageID = update.Message.MessageID
 	_, err := bot.Send(msg)
 	if err != nil {
-		fmt.Println("Сообщение не отправлено", err)
-		sendNewMessage("Не смог отправить сообщение", bot, update)
+		logger.Error("Сообщение не отправлено", err)
 	}
 }
