@@ -1,7 +1,6 @@
 package mergeRequest
 
 import (
-	"code-review-tg-bot/src/logger"
 	"code-review-tg-bot/src/parser"
 	"code-review-tg-bot/src/requests"
 	"strings"
@@ -28,8 +27,6 @@ func GetDataByUrl(url string) (DataExtended, error) {
 	if err != nil {
 		return DataExtended{}, err
 	}
-
-	logger.Debug("mergeRequestData", "changes_count", mergeRequestData.ChangesCount)
 
 	stats, err := getStats(projectId, mergeRequestId)
 	if err != nil {

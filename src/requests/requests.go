@@ -3,7 +3,6 @@ package requests
 import (
 	"encoding/json"
 	"fmt"
-	"moul.io/http2curl"
 	"net/http"
 	"os"
 )
@@ -63,9 +62,6 @@ func GetMergeRequestData(projectID int, mergeRequestId int) (MergeRequestData, e
 	}
 
 	req.Header.Set("PRIVATE-TOKEN", gitlabToken)
-
-	command, _ := http2curl.GetCurlCommand(req)
-	fmt.Println(command)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
