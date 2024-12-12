@@ -3,6 +3,7 @@ package requests
 import (
 	"encoding/json"
 	"fmt"
+	"moul.io/http2curl"
 	"net/http"
 	"os"
 )
@@ -16,6 +17,7 @@ type MergeRequestData struct {
 	HasConflicts bool   `json:"has_conflicts"`
 	Description  string `json:"description"`
 	Url          string `json:"web_url"`
+	ChangesCount string `json:"changes_count"`
 }
 
 func GetProjectId(projectName string) (int, error) {
@@ -62,6 +64,9 @@ func GetMergeRequestData(projectID int, mergeRequestId int) (MergeRequestData, e
 
 	req.Header.Set("PRIVATE-TOKEN", gitlabToken)
 
+	command, _ := http2curl.GetCurlCommand(req)
+	fmt.Println(command)
+
 	client := &http.Client{}
 	resp, err := client.Do(req)
 
@@ -84,55 +89,26 @@ type MergeRequestCommit struct {
 	ID string `json:"id"`
 }
 
-func GetMergeRequestCommits(projectID int, mergeRequestId int) ([]MergeRequestCommit, error) {
-
-	gitlabDomain := os.Getenv("GITLAB_DOMAIN")
-	gitlabToken := os.Getenv("GITLAB_TOKEN")
-	url := fmt.Sprintf("https://%s/api/v4/projects/%d/merge_requests/%d/commits", gitlabDomain, projectID, mergeRequestId)
-
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return []MergeRequestCommit{}, fmt.Errorf("не удалось создать реквест: %s", err)
-	}
-
-	req.Header.Set("PRIVATE-TOKEN", gitlabToken)
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-
-	if err != nil {
-		return []MergeRequestCommit{}, fmt.Errorf("не удалось выполнить запрос: %s", err)
-	}
-
-	defer resp.Body.Close()
-
-	var data []MergeRequestCommit
-	err = json.NewDecoder(resp.Body).Decode(&data)
-	if err != nil {
-		return []MergeRequestCommit{}, fmt.Errorf("ошибка декода тела ответа: %s", err)
-	}
-
-	return data, nil
-}
-
 type MergeRequestStats struct {
 	Additions int `json:"additions"`
 	Deletions int `json:"deletions"`
 }
 
-type CommitData struct {
-	Stats MergeRequestStats
+type MergeRequestDiff struct {
+	Diff string `json:"diff"`
 }
 
-func GetCommitData(projectID int, commitId string) (CommitData, error) {
+type MergeRequestDiffResponse []MergeRequestDiff
+
+func GetMergeRequestDiffs(projectID int, mergeRequestId int) (MergeRequestDiffResponse, error) {
 
 	gitlabDomain := os.Getenv("GITLAB_DOMAIN")
 	gitlabToken := os.Getenv("GITLAB_TOKEN")
-	url := fmt.Sprintf("https://%s/api/v4/projects/%d/repository/commits/%s", gitlabDomain, projectID, commitId)
+	url := fmt.Sprintf("https://%s/api/v4/projects/%d/merge_requests/%d/diffs", gitlabDomain, projectID, mergeRequestId)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return CommitData{}, fmt.Errorf("не удалось создать реквест: %s", err)
+		return MergeRequestDiffResponse{}, fmt.Errorf("не удалось создать реквест: %s", err)
 	}
 
 	req.Header.Set("PRIVATE-TOKEN", gitlabToken)
@@ -141,15 +117,15 @@ func GetCommitData(projectID int, commitId string) (CommitData, error) {
 	resp, err := client.Do(req)
 
 	if err != nil {
-		return CommitData{}, fmt.Errorf("не удалось выполнить запрос: %s", err)
+		return MergeRequestDiffResponse{}, fmt.Errorf("не удалось выполнить запрос: %s", err)
 	}
 
 	defer resp.Body.Close()
 
-	var data CommitData
+	var data MergeRequestDiffResponse
 	err = json.NewDecoder(resp.Body).Decode(&data)
 	if err != nil {
-		return CommitData{}, fmt.Errorf("ошибка декода тела ответа: %s", err)
+		return MergeRequestDiffResponse{}, fmt.Errorf("ошибка декода тела ответа: %s", err)
 	}
 
 	return data, nil

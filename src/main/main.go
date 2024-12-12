@@ -97,7 +97,10 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI) {
 		}
 
 		mergeRequestDataStorage = append(mergeRequestDataStorage, mergeRequestData)
+
 		mergeRequestRowsChanged := mergeRequestData.Deletions + mergeRequestData.Additions
+
+		logger.Debug("mergeRequestRowsChanged", mergeRequestRowsChanged, "mergeRequestData.Deletions", mergeRequestData.Deletions, "mergeRequestData.Additions", mergeRequestData.Additions)
 
 		maxRows, err := strconv.Atoi(os.Getenv("MAXIMUM_ROWS_CHANGED"))
 

@@ -1,8 +1,10 @@
 package mergeRequest
 
 import (
+	"code-review-tg-bot/src/logger"
 	"code-review-tg-bot/src/parser"
 	"code-review-tg-bot/src/requests"
+	"strings"
 )
 
 type DataExtended struct {
@@ -27,6 +29,8 @@ func GetDataByUrl(url string) (DataExtended, error) {
 		return DataExtended{}, err
 	}
 
+	logger.Debug("mergeRequestData", "changes_count", mergeRequestData.ChangesCount)
+
 	stats, err := getStats(projectId, mergeRequestId)
 	if err != nil {
 		return DataExtended{mergeRequestData, requests.MergeRequestStats{}}, err
@@ -36,18 +40,21 @@ func GetDataByUrl(url string) (DataExtended, error) {
 }
 
 func getStats(projectID int, mergeRequestId int) (requests.MergeRequestStats, error) {
-	commits, err := requests.GetMergeRequestCommits(projectID, mergeRequestId)
+	diffs, err := requests.GetMergeRequestDiffs(projectID, mergeRequestId)
 	if err != nil {
 		return requests.MergeRequestStats{}, err
 	}
 	mergeRequestStats := requests.MergeRequestStats{}
-	for _, commit := range commits {
-		commitStats, err := requests.GetCommitData(projectID, commit.ID)
-		if err != nil {
-			return requests.MergeRequestStats{}, err
+	for _, diff := range diffs {
+		for _, line := range strings.Split(diff.Diff, "\n") {
+			if strings.HasPrefix(line, "-") {
+				mergeRequestStats.Deletions++
+			}
+			if strings.HasPrefix(line, "+") {
+				mergeRequestStats.Additions++
+			}
 		}
-		mergeRequestStats.Additions += commitStats.Stats.Additions
-		mergeRequestStats.Deletions += commitStats.Stats.Deletions
 	}
+
 	return mergeRequestStats, nil
 }
