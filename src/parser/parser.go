@@ -16,7 +16,7 @@ func ParseGitlabURL(url string) (projectName string, mergeRequestId int, err err
 	re := regexp.MustCompile(regex)
 	match := re.FindStringSubmatch(url)
 
-	errMsg := "Переданная сссылка не содержит вадидного URL merge request "
+	errMsg := "Переданная сссылка не содержит вадидного URL merge request"
 
 	if len(match) == 0 {
 		return "", 0, errors.New(errMsg)

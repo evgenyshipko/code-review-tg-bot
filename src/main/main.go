@@ -54,6 +54,8 @@ func main() {
 //TODO: доступ только разрешенным разработчикам (и админам т.е завести админов)
 //TODO: реализовать команду отпуска
 //TODO: кеширование ручек/истории ревью во внешнем источнике (редис)
+//TODO: игнорить package-lock.json файл и папку с лендингами
+//TODO: если ссылка на определденный коммит, то делать ревью только этого коммита
 
 func mainLoopFunc(update tg.Update, bot *tg.BotAPI) {
 	defer func() {
@@ -127,7 +129,7 @@ func generateMessageText(data []mergeRequest.DataExtended, reviewerList []tg.Cha
 	msg := "Требуется ревью:"
 	for _, dataEntity := range data {
 		msg += "\n" + fmt.Sprintf("<a href=\"%s\">%s</a>", dataEntity.Url, dataEntity.Title)
-		if dataEntity.Additions > 0 && dataEntity.Deletions > 0 {
+		if dataEntity.Additions > 0 || dataEntity.Deletions > 0 {
 			msg += "\n" + fmt.Sprintf("Размер: +%d -%d", dataEntity.Additions, dataEntity.Deletions)
 		}
 	}

@@ -30,7 +30,7 @@ func GetDataByUrl(url string) (DataExtended, error) {
 
 	stats, err := getStats(projectId, mergeRequestId)
 	if err != nil {
-		return DataExtended{mergeRequestData, requests.MergeRequestStats{}}, err
+		return DataExtended{mergeRequestData, requests.MergeRequestStats{}}, nil
 	}
 
 	return DataExtended{mergeRequestData, stats}, nil

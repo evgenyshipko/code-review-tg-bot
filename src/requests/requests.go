@@ -3,6 +3,7 @@ package requests
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 )
@@ -19,11 +20,29 @@ type MergeRequestData struct {
 	ChangesCount string `json:"changes_count"`
 }
 
+type CustomHTTPClient struct {
+	http.Client
+}
+
+func (c *CustomHTTPClient) Do(req *http.Request) (*http.Response, error) {
+	resp, err := c.Client.Do(req)
+	if err != nil {
+		return resp, err
+	}
+
+	if resp.StatusCode >= 400 {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("REQUEST %s %s FAILED WITH STATUS %d: %s", resp.Request.Method, resp.Request.URL, resp.StatusCode, string(bodyBytes))
+	}
+
+	return resp, nil
+}
+
 func GetProjectId(projectName string) (int, error) {
 
 	gitlabDomain := os.Getenv("GITLAB_DOMAIN")
 	gitlabToken := os.Getenv("GITLAB_TOKEN")
-	url := fmt.Sprintf("https://%s/api/v4/projects?search=%s", gitlabDomain, projectName)
+	url := fmt.Sprintf("https://%s/api/v4/projects?search=%s&order_by=similarity", gitlabDomain, projectName)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -32,7 +51,7 @@ func GetProjectId(projectName string) (int, error) {
 
 	req.Header.Set("PRIVATE-TOKEN", gitlabToken)
 
-	client := &http.Client{}
+	client := &CustomHTTPClient{}
 	resp, err := client.Do(req)
 
 	if err != nil {
@@ -63,7 +82,7 @@ func GetMergeRequestData(projectID int, mergeRequestId int) (MergeRequestData, e
 
 	req.Header.Set("PRIVATE-TOKEN", gitlabToken)
 
-	client := &http.Client{}
+	client := &CustomHTTPClient{}
 	resp, err := client.Do(req)
 
 	if err != nil {
@@ -109,7 +128,7 @@ func GetMergeRequestDiffs(projectID int, mergeRequestId int) (MergeRequestDiffRe
 
 	req.Header.Set("PRIVATE-TOKEN", gitlabToken)
 
-	client := &http.Client{}
+	client := &CustomHTTPClient{}
 	resp, err := client.Do(req)
 
 	if err != nil {
