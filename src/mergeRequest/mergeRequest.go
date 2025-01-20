@@ -5,6 +5,7 @@ import (
 	"code-review-tg-bot/src/logger"
 	"code-review-tg-bot/src/parser"
 	"code-review-tg-bot/src/requests"
+	"os"
 	"strconv"
 	"strings"
 )
@@ -51,7 +52,19 @@ func getStats(projectID int, mergeRequestId int, filesCount int, gitBranch strin
 	}
 
 	mergeRequestStats := requests.MergeRequestStats{}
+MainDiffsLoop:
 	for _, diff := range diffs {
+
+		ignorePaths := os.Getenv("IGNORE_PATHS")
+		if ignorePaths != "" {
+			ignorePathsSlice := strings.Split(ignorePaths, ",")
+			for _, ignorePath := range ignorePathsSlice {
+				if strings.Contains(diff.NewPath, ignorePath) {
+					continue MainDiffsLoop
+				}
+			}
+		}
+
 		if diff.NewFile {
 			filePath := diff.NewPath
 
