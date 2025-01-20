@@ -39,6 +39,7 @@ func GetDataByUrl(url string) (DataExtended, error) {
 
 	stats, err := getStats(projectId, mergeRequestId, filesCount, mergeRequestData.SourceBranch)
 	if err != nil {
+		logger.Error("ERROR", "STATS CALCULATION", err.Error())
 		return DataExtended{mergeRequestData, requests.MergeRequestStats{}}, nil
 	}
 

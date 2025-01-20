@@ -87,6 +87,13 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI) {
 
 	for _, url := range urls {
 		mergeRequestData, err := mergeRequest.GetDataByUrl(url)
+
+		if strings.Count(mergeRequestData.Description, "[ ]") > 1 {
+			msg := fmt.Sprintf(" <a href=\"%s\">Чеклист</a> из описания МР-а не пройден (пустым может быть только пункт \"Тесты пройдены\", когда тесты отвалились)", url)
+			sendNewMessage(msg, bot, update)
+			return
+		}
+
 		if err != nil {
 			logger.Error(err.Error())
 			sendNewMessage("Что-то пошло не так: "+err.Error(), bot, update)
