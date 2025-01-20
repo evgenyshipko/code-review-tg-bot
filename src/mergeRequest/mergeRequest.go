@@ -1,8 +1,11 @@
 package mergeRequest
 
 import (
+	"code-review-tg-bot/src/file"
+	"code-review-tg-bot/src/logger"
 	"code-review-tg-bot/src/parser"
 	"code-review-tg-bot/src/requests"
+	"strconv"
 	"strings"
 )
 
@@ -28,7 +31,12 @@ func GetDataByUrl(url string) (DataExtended, error) {
 		return DataExtended{}, err
 	}
 
-	stats, err := getStats(projectId, mergeRequestId)
+	filesCount, err := strconv.Atoi(mergeRequestData.ChangesCount)
+	if err != nil {
+		filesCount = 20
+	}
+
+	stats, err := getStats(projectId, mergeRequestId, filesCount, mergeRequestData.SourceBranch)
 	if err != nil {
 		return DataExtended{mergeRequestData, requests.MergeRequestStats{}}, nil
 	}
@@ -36,13 +44,35 @@ func GetDataByUrl(url string) (DataExtended, error) {
 	return DataExtended{mergeRequestData, stats}, nil
 }
 
-func getStats(projectID int, mergeRequestId int) (requests.MergeRequestStats, error) {
-	diffs, err := requests.GetMergeRequestDiffs(projectID, mergeRequestId)
+func getStats(projectID int, mergeRequestId int, filesCount int, gitBranch string) (requests.MergeRequestStats, error) {
+	diffs, err := requests.GetMergeRequestDiffs(projectID, mergeRequestId, filesCount)
 	if err != nil {
 		return requests.MergeRequestStats{}, err
 	}
+
 	mergeRequestStats := requests.MergeRequestStats{}
 	for _, diff := range diffs {
+		if diff.NewFile {
+			filePath := diff.NewPath
+
+			if !file.IsCodeFile(filePath) {
+				continue
+			}
+
+			file1, err := requests.GetRawFile(projectID, filePath, gitBranch)
+			if err != nil {
+				logger.Error("ERROR WHEN GET RAW FILE", err.Error())
+				return requests.MergeRequestStats{}, err
+			}
+
+			fileLength := len(strings.Split(file1, "\n"))
+
+			logger.Debug("FILE_LEN", fileLength, "filePath", filePath)
+
+			mergeRequestStats.Additions += fileLength
+			continue
+		}
+
 		for _, line := range strings.Split(diff.Diff, "\n") {
 			if strings.HasPrefix(line, "-") {
 				mergeRequestStats.Deletions++
