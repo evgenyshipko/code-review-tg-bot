@@ -5,12 +5,13 @@ import (
 	"code-review-tg-bot/src/mergeRequest"
 	"code-review-tg-bot/src/reviewers"
 	"fmt"
-	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"github.com/joho/godotenv"
-	"github.com/mvdan/xurls"
 	"os"
 	"strconv"
 	"strings"
+
+	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/joho/godotenv"
+	"github.com/mvdan/xurls"
 )
 
 // initialized before main call
