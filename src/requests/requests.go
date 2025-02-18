@@ -125,53 +125,45 @@ func GetMergeRequestDiffs(projectID int, mergeRequestId int, pageSize int) (Merg
 	gitlabDomain := os.Getenv("GITLAB_DOMAIN")
 	gitlabToken := os.Getenv("GITLAB_TOKEN")
 
-	// Используем дефолтное значение 30, если pageSize больше 30
-	if pageSize > 30 {
-		pageSize = 30
+	url1 := fmt.Sprintf("https://%s/api/v4/projects/%d/merge_requests/%d/changes?access_raw_diffs=true",
+		gitlabDomain, projectID, mergeRequestId)
+
+	req, err := http.NewRequest("GET", url1, nil)
+	if err != nil {
+		return MergeRequestDiffResponse{}, fmt.Errorf("не удалось создать реквест: %s", err)
 	}
 
-	var allDiffs MergeRequestDiffResponse
-	page := 1 // Как стартовое значение
+	req.Header.Set("PRIVATE-TOKEN", gitlabToken)
 
-	// Цикл для получения всех данных
-	for {
-		url1 := fmt.Sprintf("https://%s/api/v4/projects/%d/merge_requests/%d/diffs?per_page=%d&page=%d",
-			gitlabDomain, projectID, mergeRequestId, pageSize, page)
+	client := &CustomHTTPClient{}
+	resp, err := client.Do(req)
 
-		req, err := http.NewRequest("GET", url1, nil)
-		if err != nil {
-			return MergeRequestDiffResponse{}, fmt.Errorf("не удалось создать реквест: %s", err)
-		}
-
-		req.Header.Set("PRIVATE-TOKEN", gitlabToken)
-
-		client := &CustomHTTPClient{}
-		resp, err := client.Do(req)
-
-		if err != nil {
-			return MergeRequestDiffResponse{}, fmt.Errorf("не удалось выполнить запрос: %s", err)
-		}
-
-		defer resp.Body.Close()
-
-		var data MergeRequestDiffResponse
-		err = json.NewDecoder(resp.Body).Decode(&data)
-		if err != nil {
-			return MergeRequestDiffResponse{}, fmt.Errorf("ошибка декода тела ответа: %s", err)
-		}
-
-		// Если данных нет - прерываем цикл
-		if len(data) == 0 {
-			break
-		}
-
-		// Добавляем полученные данные в общий сlice
-		allDiffs = append(allDiffs, data...)
-
-		page++
+	if err != nil {
+		return MergeRequestDiffResponse{}, fmt.Errorf("не удалось выполнить запрос: %s", err)
 	}
 
-	return allDiffs, nil
+	defer resp.Body.Close()
+
+	// Промежуточная структура для получения только изменений
+	var intermediateData struct {
+		Changes []MergeRequestDiff `json:"changes"`
+	}
+
+	if err = json.NewDecoder(resp.Body).Decode(&intermediateData); err != nil {
+		return MergeRequestDiffResponse{}, fmt.Errorf("ошибка декода тела ответа: %s", err)
+	}
+
+	var data MergeRequestDiffResponse
+	for _, change := range intermediateData.Changes {
+		data = append(data, MergeRequestDiff{
+			Diff:    change.Diff,
+			OldPath: change.OldPath,
+			NewPath: change.NewPath,
+			NewFile: change.NewFile,
+		})
+	}
+
+	return data, nil
 }
 
 func GetRawFile(projectID int, filePath string, gitBranch string) (string, error) {
