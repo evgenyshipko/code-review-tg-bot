@@ -5,7 +5,7 @@ COPY . /app
 WORKDIR /app
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o server ./src/main
 
-FROM scratch
+FROM alpine
 ENV PORT=8080
 COPY --from=builder /app/server /
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
