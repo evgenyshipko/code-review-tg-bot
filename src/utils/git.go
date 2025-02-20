@@ -1,7 +1,9 @@
 package utils
 
 import (
+	"code-review-tg-bot/src/logger"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -10,6 +12,7 @@ import (
 func GetLastCommitInfo() (string, string, error) {
 	// Хэш последнего коммита
 	hashCmd := exec.Command("git", "rev-parse", "HEAD")
+	lastCommitHashFromEnv := os.Getenv("LAST_COMMIT_HASH")
 
 	hashOutput, err := hashCmd.Output()
 	if err != nil {
@@ -24,6 +27,11 @@ func GetLastCommitInfo() (string, string, error) {
 		return "", "", fmt.Errorf("error getting commit message: %v", err)
 	}
 	message := strings.TrimSpace(string(msgOutput))
+
+	logger.Info("Получение последнего коммита из переменных окружения", "lastCommitHashFromEnv", lastCommitHashFromEnv)
+	if hashCmd.String() == lastCommitHashFromEnv {
+		logger.Info("Хэши коммитов идентичны", "hash:", hash, "lastCommitHashFromEnv: ", lastCommitHashFromEnv)
+	}
 
 	return hash, message, nil
 }

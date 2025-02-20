@@ -1,6 +1,7 @@
 package requests
 
 import (
+	"code-review-tg-bot/src/logger"
 	"fmt"
 	"net/url"
 	"os"
@@ -35,22 +36,23 @@ GET запрос к апи гитлаба
   - result: указатель для сохранения респонса
   - isRawResponse: флаг для приведение респонса к строке
 */
-func doGitlabGet(path string, result interface{}, isRawResponse bool) error {
+func doGitlabGet(path string, result interface{}) error {
 	gitlabDomain := os.Getenv("GITLAB_DOMAIN")
 	gitlabToken := os.Getenv("GITLAB_TOKEN")
 
 	fullURL := fmt.Sprintf("https://%s/api/v4/%s", gitlabDomain, path)
 
-	request :=
+	resp, err :=
 		NewHTTPClient().
 			R().
-			SetHeader("PRIVATE-TOKEN", gitlabToken)
+			SetHeader("PRIVATE-TOKEN", gitlabToken).
+			SetResult(&result).
+			Get(fullURL)
 
-	if !isRawResponse {
-		request.SetResult(&result)
+	strRes, ok := result.(*string)
+	if ok {
+		*strRes = resp.String()
 	}
-
-	resp, err := request.Get(fullURL)
 
 	if err != nil {
 		return fmt.Errorf("не удалось выполнить GET-запрос: %w", err)
@@ -61,13 +63,10 @@ func doGitlabGet(path string, result interface{}, isRawResponse bool) error {
 			resp.StatusCode(), resp.String())
 	}
 
-	if isRawResponse {
-		// Респонс в виде строки, (нужно для GetRawFile, иначе считает не все строки)
-		str, ok := result.(*string)
-		if ok {
-			*str = resp.String()
-		}
-	}
+	logger.Info(
+		"doGitlabGet",
+		"responseResult: ", result,
+		"pathRequest: ", path)
 
 	return nil
 }
@@ -77,7 +76,7 @@ func GetProjectId(projectName string) (int, error) {
 	var data []ProjectData
 	path := fmt.Sprintf("projects?search=%s&order_by=similarity", projectName)
 
-	doGitlabGet(path, &data, false)
+	doGitlabGet(path, &data)
 
 	return data[0].ID, nil
 }
@@ -86,7 +85,7 @@ func GetMergeRequestData(projectID int, mergeRequestId int) (MergeRequestData, e
 	var data MergeRequestData
 	path := fmt.Sprintf("projects/%d/merge_requests/%d", projectID, mergeRequestId)
 
-	doGitlabGet(path, &data, false)
+	doGitlabGet(path, &data)
 
 	return data, nil
 
@@ -116,7 +115,7 @@ func GetMergeRequestDiffs(projectID int, mergeRequestId int, pageSize int) ([]Me
 	var data MergeRequestDiffResponse
 	path := fmt.Sprintf("projects/%d/merge_requests/%d/changes?access_raw_diffs=true", projectID, mergeRequestId)
 
-	doGitlabGet(path, &data, false)
+	doGitlabGet(path, &data)
 
 	return data.Changes, nil
 }
@@ -127,7 +126,9 @@ func GetRawFile(projectID int, filePath, gitBranch string) (string, error) {
 		url.QueryEscape(filePath),
 		gitBranch)
 
-	doGitlabGet(path, &data, true)
+	if err := doGitlabGet(path, &data); err != nil {
+		return "", err
+	}
 
 	return data, nil
 }
