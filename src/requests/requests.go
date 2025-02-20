@@ -1,13 +1,11 @@
 package requests
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
-	"log"
-	"net/http"
 	"net/url"
 	"os"
+
+	"github.com/go-resty/resty/v2"
 )
 
 type ProjectData struct {
@@ -23,84 +21,75 @@ type MergeRequestData struct {
 	SourceBranch string `json:"source_branch"`
 }
 
-type CustomHTTPClient struct {
-	http.Client
+type HTTPClient struct {
+	*resty.Client
 }
 
-func (c *CustomHTTPClient) Do(req *http.Request) (*http.Response, error) {
-	resp, err := c.Client.Do(req)
+func NewHTTPClient() *resty.Client {
+	return resty.New()
+}
+
+/*
+GET запрос к апи гитлаба
+  - path: путь к эндпоинту
+  - result: указатель для сохранения респонса
+  - isRawResponse: флаг для приведение респонса к строке
+*/
+func doGitlabGet(path string, result interface{}, isRawResponse bool) error {
+	gitlabDomain := os.Getenv("GITLAB_DOMAIN")
+	gitlabToken := os.Getenv("GITLAB_TOKEN")
+
+	fullURL := fmt.Sprintf("https://%s/api/v4/%s", gitlabDomain, path)
+
+	request :=
+		NewHTTPClient().
+			R().
+			SetHeader("PRIVATE-TOKEN", gitlabToken)
+
+	if !isRawResponse {
+		request.SetResult(&result)
+	}
+
+	resp, err := request.Get(fullURL)
+
 	if err != nil {
-		return resp, err
+		return fmt.Errorf("не удалось выполнить GET-запрос: %w", err)
 	}
 
-	if resp.StatusCode >= 400 {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("REQUEST %s %s FAILED WITH STATUS %d: %s", resp.Request.Method, resp.Request.URL, resp.StatusCode, string(bodyBytes))
+	if resp.IsError() {
+		return fmt.Errorf("выполнен запрос с ошибкой, код: %d, тело ответа: %s",
+			resp.StatusCode(), resp.String())
 	}
 
-	return resp, nil
+	if isRawResponse {
+		// Респонс в виде строки, (нужно для GetRawFile, иначе считает не все строки)
+		str, ok := result.(*string)
+		if ok {
+			*str = resp.String()
+		}
+	}
+
+	return nil
 }
 
 func GetProjectId(projectName string) (int, error) {
 
-	gitlabDomain := os.Getenv("GITLAB_DOMAIN")
-	gitlabToken := os.Getenv("GITLAB_TOKEN")
-	url := fmt.Sprintf("https://%s/api/v4/projects?search=%s&order_by=similarity", gitlabDomain, projectName)
-
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return 0, fmt.Errorf("не удалось создать реквест: %s", err)
-	}
-
-	req.Header.Set("PRIVATE-TOKEN", gitlabToken)
-
-	client := &CustomHTTPClient{}
-	resp, err := client.Do(req)
-
-	if err != nil {
-		return 0, fmt.Errorf("не удалось выполнить запрос: %s", err)
-	}
-
-	defer resp.Body.Close()
-
 	var data []ProjectData
-	err = json.NewDecoder(resp.Body).Decode(&data)
-	if err != nil {
-		return 0, fmt.Errorf("ошибка декода тела ответа: %s", err)
-	}
+	path := fmt.Sprintf("projects?search=%s&order_by=similarity", projectName)
+
+	doGitlabGet(path, &data, false)
 
 	return data[0].ID, nil
 }
 
 func GetMergeRequestData(projectID int, mergeRequestId int) (MergeRequestData, error) {
-
-	gitlabDomain := os.Getenv("GITLAB_DOMAIN")
-	gitlabToken := os.Getenv("GITLAB_TOKEN")
-	url := fmt.Sprintf("https://%s/api/v4/projects/%d/merge_requests/%d", gitlabDomain, projectID, mergeRequestId)
-
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return MergeRequestData{}, fmt.Errorf("не удалось создать реквест: %s", err)
-	}
-
-	req.Header.Set("PRIVATE-TOKEN", gitlabToken)
-
-	client := &CustomHTTPClient{}
-	resp, err := client.Do(req)
-
-	if err != nil {
-		return MergeRequestData{}, fmt.Errorf("не удалось выполнить запрос: %s", err)
-	}
-
-	defer resp.Body.Close()
-
 	var data MergeRequestData
-	err = json.NewDecoder(resp.Body).Decode(&data)
-	if err != nil {
-		return MergeRequestData{}, fmt.Errorf("ошибка декода тела ответа: %s", err)
-	}
+	path := fmt.Sprintf("projects/%d/merge_requests/%d", projectID, mergeRequestId)
+
+	doGitlabGet(path, &data, false)
 
 	return data, nil
+
 }
 
 type MergeRequestCommit struct {
@@ -119,79 +108,26 @@ type MergeRequestDiff struct {
 	NewFile bool   `json:"new_file"`
 }
 
-type MergeRequestDiffResponse []MergeRequestDiff
-
-func GetMergeRequestDiffs(projectID int, mergeRequestId int, pageSize int) (MergeRequestDiffResponse, error) {
-	gitlabDomain := os.Getenv("GITLAB_DOMAIN")
-	gitlabToken := os.Getenv("GITLAB_TOKEN")
-
-	url1 := fmt.Sprintf("https://%s/api/v4/projects/%d/merge_requests/%d/changes?access_raw_diffs=true",
-		gitlabDomain, projectID, mergeRequestId)
-
-	req, err := http.NewRequest("GET", url1, nil)
-	if err != nil {
-		return MergeRequestDiffResponse{}, fmt.Errorf("не удалось создать реквест: %s", err)
-	}
-
-	req.Header.Set("PRIVATE-TOKEN", gitlabToken)
-
-	client := &CustomHTTPClient{}
-	resp, err := client.Do(req)
-
-	if err != nil {
-		return MergeRequestDiffResponse{}, fmt.Errorf("не удалось выполнить запрос: %s", err)
-	}
-
-	defer resp.Body.Close()
-
-	// Промежуточная структура для получения только изменений
-	var intermediateData struct {
-		Changes []MergeRequestDiff `json:"changes"`
-	}
-
-	if err = json.NewDecoder(resp.Body).Decode(&intermediateData); err != nil {
-		return MergeRequestDiffResponse{}, fmt.Errorf("ошибка декода тела ответа: %s", err)
-	}
-
-	var data MergeRequestDiffResponse
-	for _, change := range intermediateData.Changes {
-		data = append(data, MergeRequestDiff{
-			Diff:    change.Diff,
-			OldPath: change.OldPath,
-			NewPath: change.NewPath,
-			NewFile: change.NewFile,
-		})
-	}
-
-	return data, nil
+type MergeRequestDiffResponse struct {
+	Changes []MergeRequestDiff `json:"changes"`
 }
 
-func GetRawFile(projectID int, filePath string, gitBranch string) (string, error) {
+func GetMergeRequestDiffs(projectID int, mergeRequestId int, pageSize int) ([]MergeRequestDiff, error) {
+	var data MergeRequestDiffResponse
+	path := fmt.Sprintf("projects/%d/merge_requests/%d/changes?access_raw_diffs=true", projectID, mergeRequestId)
 
-	gitlabDomain := os.Getenv("GITLAB_DOMAIN")
-	gitlabToken := os.Getenv("GITLAB_TOKEN")
-	url1 := fmt.Sprintf("https://%s/api/v4/projects/%d/repository/files/%s/raw?ref=%s", gitlabDomain, projectID, url.QueryEscape(filePath), gitBranch)
+	doGitlabGet(path, &data, false)
 
-	req, err := http.NewRequest("GET", url1, nil)
-	if err != nil {
-		return "", fmt.Errorf("не удалось создать реквест: %s", err)
-	}
+	return data.Changes, nil
+}
 
-	req.Header.Set("PRIVATE-TOKEN", gitlabToken)
+func GetRawFile(projectID int, filePath, gitBranch string) (string, error) {
+	var data string
+	path := fmt.Sprintf("projects/%d/repository/files/%s/raw?ref=%s", projectID,
+		url.QueryEscape(filePath),
+		gitBranch)
 
-	client := &CustomHTTPClient{}
-	resp, err := client.Do(req)
+	doGitlabGet(path, &data, true)
 
-	if err != nil {
-		return "", fmt.Errorf("не удалось выполнить запрос: %s", err)
-	}
-
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Fatalf("Failed to read response body: %v", err)
-	}
-
-	return string(body), nil
+	return data, nil
 }
