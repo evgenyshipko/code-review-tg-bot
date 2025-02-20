@@ -4,6 +4,7 @@ import (
 	"code-review-tg-bot/src/logger"
 	"code-review-tg-bot/src/mergeRequest"
 	"code-review-tg-bot/src/reviewers"
+	"code-review-tg-bot/src/utils"
 	"fmt"
 	"os"
 	"strconv"
@@ -22,10 +23,17 @@ func init() {
 }
 
 func main() {
+	// Получение последнего коммита
+	hash, message, err := utils.GetLastCommitInfo()
+	if err != nil {
+		logger.Error("Ошибка получения информации о последнем коммите", "error", err)
+	} else {
+		logger.Info("Бот стартовал с последним коммитом", "hash", hash, "message", message)
+	}
 
 	BotToken := os.Getenv("BOT_TOKEN")
 
-	err := tg.SetLogger(logger.Logger)
+	err = tg.SetLogger(logger.Logger)
 	if err != nil {
 		panic(err)
 	}
