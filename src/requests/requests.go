@@ -55,12 +55,27 @@ func doGitlabGet(path string, result interface{}) error {
 	}
 
 	if err != nil {
-		return fmt.Errorf("не удалось выполнить GET-запрос: %w", err)
+		errStr := fmt.Errorf("не удалось выполнить GET-запрос: %w", err)
+		logger.Error(
+			"Не удалось выполнить GET-запрос",
+			"err", errStr,
+			"fullURL", fullURL,
+			"path", path,
+		)
+		return errStr
 	}
 
 	if resp.IsError() {
-		return fmt.Errorf("выполнен запрос с ошибкой, код: %d, тело ответа: %s",
+		errStr := fmt.Errorf("выполнен запрос с ошибкой, код: %d, тело ответа: %s",
 			resp.StatusCode(), resp.String())
+		logger.Error(
+			"Ошибка ответа GitLab",
+			"err", errStr,
+			"StatusCode", resp.StatusCode(),
+			"path", path,
+		)
+
+		return errStr
 	}
 
 	logger.Info(
@@ -76,7 +91,24 @@ func GetProjectId(projectName string) (int, error) {
 	var data []ProjectData
 	path := fmt.Sprintf("projects?search=%s&order_by=similarity", projectName)
 
-	doGitlabGet(path, &data)
+	if err := doGitlabGet(path, &data); err != nil {
+		logger.Error(
+			"Не удалось получить ID проекта",
+			"projectName", projectName,
+			"err", err.Error(),
+		)
+		return 0, err
+	}
+
+	if len(data) == 0 {
+		errStr := fmt.Errorf("проект с именем %s не найден", projectName)
+		logger.Error(
+			"Проект не найден",
+			"projectName", projectName,
+			"errStr", errStr.Error(),
+		)
+		return 0, errStr
+	}
 
 	return data[0].ID, nil
 }
@@ -85,7 +117,15 @@ func GetMergeRequestData(projectID int, mergeRequestId int) (MergeRequestData, e
 	var data MergeRequestData
 	path := fmt.Sprintf("projects/%d/merge_requests/%d", projectID, mergeRequestId)
 
-	doGitlabGet(path, &data)
+	if err := doGitlabGet(path, &data); err != nil {
+		logger.Error(
+			"Не удалось получить данные о Merge Request",
+			"projectID", projectID,
+			"mergeRequestId", mergeRequestId,
+			"err", err.Error(),
+		)
+		return MergeRequestData{}, err
+	}
 
 	return data, nil
 
@@ -115,7 +155,16 @@ func GetMergeRequestDiffs(projectID int, mergeRequestId int, pageSize int) ([]Me
 	var data MergeRequestDiffResponse
 	path := fmt.Sprintf("projects/%d/merge_requests/%d/changes?access_raw_diffs=true", projectID, mergeRequestId)
 
-	doGitlabGet(path, &data)
+	if err := doGitlabGet(path, &data); err != nil {
+		logger.Error(
+			"Не удалось получить список изменений (diff)",
+			"projectID", projectID,
+			"mergeRequestId", mergeRequestId,
+			"err", err.Error(),
+		)
+
+		return []MergeRequestDiff{}, err
+	}
 
 	return data.Changes, nil
 }
@@ -127,6 +176,14 @@ func GetRawFile(projectID int, filePath, gitBranch string) (string, error) {
 		gitBranch)
 
 	if err := doGitlabGet(path, &data); err != nil {
+		logger.Error(
+			"Не удалось получить содержимое файла",
+			"projectID", projectID,
+			"filePath", filePath,
+			"gitBranch", gitBranch,
+			"err", err.Error(),
+		)
+
 		return "", err
 	}
 

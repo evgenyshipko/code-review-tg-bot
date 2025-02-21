@@ -3,11 +3,12 @@ package logger
 import (
 	"context"
 	"encoding/json"
-	"github.com/fatih/color"
 	"io"
 	stdLog "log"
 	"log/slog"
 	"os"
+
+	"github.com/fatih/color"
 )
 
 type PrettyHandlerOptions struct {
