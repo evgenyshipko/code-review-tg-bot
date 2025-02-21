@@ -16,13 +16,13 @@ type DataExtended struct {
 }
 
 func GetDataByUrl(url string) (DataExtended, error) {
-	projectName, mergeRequestId, parseErr := parser.ParseGitlabURL(url)
+	encodedQueryPathProject, mergeRequestId, parseErr := parser.ParseGitlabURL(url)
 	if parseErr != nil {
 		return DataExtended{}, parseErr
 	}
 
 	//TODO: projectId - неизменяемая информация, поэтому надо уметь результат этой ручки мемоизировать
-	projectId, err := requests.GetProjectId(projectName)
+	projectId, err := requests.GetProjectId(encodedQueryPathProject)
 	if err != nil {
 		return DataExtended{}, err
 	}

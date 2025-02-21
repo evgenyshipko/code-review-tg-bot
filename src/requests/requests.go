@@ -71,14 +71,13 @@ func doGitlabGet(path string, result interface{}) error {
 	return nil
 }
 
-func GetProjectId(projectName string) (int, error) {
-
-	var data []ProjectData
-	path := fmt.Sprintf("projects?search=%s&order_by=similarity", projectName)
+func GetProjectId(projectPathName string) (int, error) {
+	var data ProjectData
+	path := fmt.Sprintf("projects/%s", projectPathName)
 
 	doGitlabGet(path, &data)
 
-	return data[0].ID, nil
+	return data.ID, nil
 }
 
 func GetMergeRequestData(projectID int, mergeRequestId int) (MergeRequestData, error) {
