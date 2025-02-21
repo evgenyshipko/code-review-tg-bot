@@ -55,12 +55,18 @@ func doGitlabGet(path string, result interface{}) error {
 	}
 
 	if err != nil {
-		return fmt.Errorf("не удалось выполнить GET-запрос: %w", err)
+		errStr := fmt.Errorf("не удалось выполнить GET-запрос: %w", err)
+		logger.Error(errStr.Error())
+
+		return errStr
 	}
 
 	if resp.IsError() {
-		return fmt.Errorf("выполнен запрос с ошибкой, код: %d, тело ответа: %s",
+		errStr := fmt.Errorf("выполнен запрос с ошибкой, код: %d, тело ответа: %s",
 			resp.StatusCode(), resp.String())
+		logger.Error(errStr.Error())
+
+		return errStr
 	}
 
 	logger.Info(
@@ -76,7 +82,11 @@ func GetProjectId(projectName string) (int, error) {
 	var data []ProjectData
 	path := fmt.Sprintf("projects?search=%s&order_by=similarity", projectName)
 
-	doGitlabGet(path, &data)
+	if err := doGitlabGet(path, &data); err != nil {
+		logger.Error(err.Error())
+
+		return 0, err
+	}
 
 	return data[0].ID, nil
 }
@@ -85,7 +95,11 @@ func GetMergeRequestData(projectID int, mergeRequestId int) (MergeRequestData, e
 	var data MergeRequestData
 	path := fmt.Sprintf("projects/%d/merge_requests/%d", projectID, mergeRequestId)
 
-	doGitlabGet(path, &data)
+	if err := doGitlabGet(path, &data); err != nil {
+		logger.Error(err.Error())
+
+		return MergeRequestData{}, err
+	}
 
 	return data, nil
 
@@ -115,7 +129,11 @@ func GetMergeRequestDiffs(projectID int, mergeRequestId int, pageSize int) ([]Me
 	var data MergeRequestDiffResponse
 	path := fmt.Sprintf("projects/%d/merge_requests/%d/changes?access_raw_diffs=true", projectID, mergeRequestId)
 
-	doGitlabGet(path, &data)
+	if err := doGitlabGet(path, &data); err != nil {
+		logger.Error(err.Error())
+
+		return []MergeRequestDiff{}, err
+	}
 
 	return data.Changes, nil
 }
@@ -127,6 +145,8 @@ func GetRawFile(projectID int, filePath, gitBranch string) (string, error) {
 		gitBranch)
 
 	if err := doGitlabGet(path, &data); err != nil {
+		logger.Error(err.Error())
+
 		return "", err
 	}
 

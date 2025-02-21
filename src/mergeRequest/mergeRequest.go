@@ -16,30 +16,39 @@ type DataExtended struct {
 }
 
 func GetDataByUrl(url string) (DataExtended, error) {
-	projectName, mergeRequestId, parseErr := parser.ParseGitlabURL(url)
-	if parseErr != nil {
-		return DataExtended{}, parseErr
+	projectName, mergeRequestId, err := parser.ParseGitlabURL(url)
+	if err != nil {
+		logger.Error("Невозможно парсить URL", "ParseGitlabURL", err.Error())
+
+		return DataExtended{}, err
 	}
 
 	//TODO: projectId - неизменяемая информация, поэтому надо уметь результат этой ручки мемоизировать
 	projectId, err := requests.GetProjectId(projectName)
 	if err != nil {
+		logger.Error("Невозможно получить ID проекта", "GetProjectId", err.Error())
+
 		return DataExtended{}, err
 	}
 
 	mergeRequestData, err := requests.GetMergeRequestData(projectId, mergeRequestId)
 	if err != nil {
+		logger.Error("Невозможно получить данные merge request", "GetMergeRequestData", err.Error())
+
 		return DataExtended{}, err
 	}
 
 	filesCount, err := strconv.Atoi(mergeRequestData.ChangesCount)
 	if err != nil {
+		logger.Error("Невозможно получить количество измененных файлов", "filesCount", err.Error())
+
 		filesCount = 20
 	}
 
 	stats, err := getStats(projectId, mergeRequestId, filesCount, mergeRequestData.SourceBranch)
 	if err != nil {
-		logger.Error("ERROR", "STATS CALCULATION", err.Error())
+		logger.Error("Невозможно получить статистику", "getStats", err.Error())
+
 		return DataExtended{mergeRequestData, requests.MergeRequestStats{}}, nil
 	}
 
@@ -49,6 +58,8 @@ func GetDataByUrl(url string) (DataExtended, error) {
 func getStats(projectID int, mergeRequestId int, filesCount int, gitBranch string) (requests.MergeRequestStats, error) {
 	diffs, err := requests.GetMergeRequestDiffs(projectID, mergeRequestId, filesCount)
 	if err != nil {
+		logger.Error("Невозможно получить данные merge request diffs", "GetMergeRequestDiffs", err.Error())
+
 		return requests.MergeRequestStats{}, err
 	}
 
@@ -75,7 +86,7 @@ MainDiffsLoop:
 
 			file1, err := requests.GetRawFile(projectID, filePath, gitBranch)
 			if err != nil {
-				logger.Error("ERROR WHEN GET RAW FILE", err.Error())
+				logger.Error("Невозможно получить строки файла", "GetRawFile", err.Error())
 				return requests.MergeRequestStats{}, err
 			}
 
