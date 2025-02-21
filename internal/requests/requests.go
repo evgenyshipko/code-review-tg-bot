@@ -1,7 +1,7 @@
 package requests
 
 import (
-	"code-review-tg-bot/src/logger"
+	"code-review-tg-bot/internal/logger"
 	"fmt"
 	"net/url"
 	"os"
@@ -36,7 +36,13 @@ GET запрос к апи гитлаба
   - result: указатель для сохранения респонса
   - isRawResponse: флаг для приведение респонса к строке
 */
-func doGitlabGet(path string, result interface{}) error {
+func doGitlabGet(path string, result interface{}, args ...bool) error {
+
+	logResponse := true
+	if len(args) > 0 {
+		logResponse = args[0]
+	}
+
 	gitlabDomain := os.Getenv("GITLAB_DOMAIN")
 	gitlabToken := os.Getenv("GITLAB_TOKEN")
 
@@ -63,10 +69,15 @@ func doGitlabGet(path string, result interface{}) error {
 			resp.StatusCode(), resp.String())
 	}
 
-	logger.Info(
+	responseReasult := result
+	if !logResponse {
+		responseReasult = "NO LOGS"
+	}
+
+	logger.Instance.Infow(
 		"doGitlabGet",
-		"responseResult: ", result,
-		"pathRequest: ", path)
+		"pathRequest: ", path,
+		"responseResult: ", responseReasult)
 
 	return nil
 }
@@ -114,7 +125,10 @@ func GetMergeRequestDiffs(projectID int, mergeRequestId int, pageSize int) ([]Me
 	var data MergeRequestDiffResponse
 	path := fmt.Sprintf("projects/%d/merge_requests/%d/changes?access_raw_diffs=true", projectID, mergeRequestId)
 
-	doGitlabGet(path, &data)
+	err := doGitlabGet(path, &data, false)
+	if err != nil {
+		return []MergeRequestDiff{}, err
+	}
 
 	return data.Changes, nil
 }

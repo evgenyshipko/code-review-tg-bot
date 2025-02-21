@@ -3,7 +3,7 @@ RUN apt install ca-certificates
 RUN mkdir /app
 COPY . /app
 WORKDIR /app
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o server ./src/main
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o server ./cmd
 
 FROM alpine
 ENV PORT=8080

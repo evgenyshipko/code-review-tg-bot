@@ -1,7 +1,7 @@
 package storage
 
 import (
-	"code-review-tg-bot/src/logger"
+	"code-review-tg-bot/internal/logger"
 	"encoding/json"
 	"sync"
 )
@@ -17,13 +17,13 @@ func Set(key string, value interface{}) {
 
 	result, err := json.Marshal(value)
 	if err != nil {
-		logger.Error(err.Error())
+		logger.Instance.Error(err.Error())
 		panic(err)
 	}
 
 	dataStore[key] = string(result)
 
-	logger.Debug("STORAGE", "dataStore", dataStore)
+	logger.Instance.Debugw("STORAGE", "dataStore", dataStore)
 }
 
 func Get(key string, result interface{}) bool {
@@ -31,17 +31,17 @@ func Get(key string, result interface{}) bool {
 	defer storeMutex.Unlock()
 	value, exists := dataStore[key]
 
-	logger.Debug("GET RAW FROM STORAGE", "key", key, "exists", exists, "value", value)
+	logger.Instance.Debugw("GET RAW FROM STORAGE", "key", key, "exists", exists, "value", value)
 
 	if exists {
 		err := json.Unmarshal([]byte(value), &result)
 		if err != nil {
-			logger.Error(err.Error())
+			logger.Instance.Error(err.Error())
 			panic(err)
 		}
 	}
 
-	logger.Debug("GET UNMARSHALLED FROM STORAGE", "key", key, "value", value)
+	logger.Instance.Debugw("GET UNMARSHALLED FROM STORAGE", "key", key, "value", value)
 
 	return exists
 }
@@ -55,8 +55,8 @@ func Delete(key string) {
 func Show() {
 	storeMutex.Lock()
 	defer storeMutex.Unlock()
-	logger.Debug("Store contents:")
+	logger.Instance.Debugw("Store contents:")
 	for key, value := range dataStore {
-		logger.Debug("%s: %s\n", key, value)
+		logger.Instance.Debugw("%s: %s\n", key, value)
 	}
 }

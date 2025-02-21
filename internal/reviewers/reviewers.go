@@ -1,8 +1,8 @@
 package reviewers
 
 import (
-	"code-review-tg-bot/src/logger"
-	"code-review-tg-bot/src/storage"
+	"code-review-tg-bot/internal/logger"
+	"code-review-tg-bot/internal/storage"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -40,8 +40,10 @@ func getChatMembers(chatId int64, getChatMember GetChatMemberType) ([]tg.ChatMem
 			},
 		})
 		if err != nil {
+			// здесь обычно происходит ошибка когда мы пытаемся запросить пользователя, которого в чате нет
+			// это нормальная ситуация - пропускаем
 			errStr := fmt.Sprintf("%s chatId:%d, userId: %d", err.Error(), chatId, reviewerId)
-			logger.Error(errStr)
+			logger.Instance.Debug(errStr)
 			continue
 		}
 
@@ -94,7 +96,7 @@ func GetReviewers(chatId int64, authorId int64, reviewerCount int, getChatMember
 	// usedMembersType - те юзеры, которых не рассматриваем на ревью
 	usedMemberIds := *getChatUsedReviewersData(chatId)
 
-	logger.Debug("LENGTH", "len(chatMembers)-1", len(chatMembers)-1, "len(usedMemberIds)", len(usedMemberIds), "reviewerCount", reviewerCount)
+	logger.Instance.Debugw("LENGTH", "len(chatMembers)-1", len(chatMembers)-1, "len(usedMemberIds)", len(usedMemberIds), "reviewerCount", reviewerCount)
 
 	// если видим, что ревьюверов требуется больше, то сразу сбрасываем usedMemberIds
 	if len(chatMembers)-1-len(usedMemberIds) < reviewerCount {
@@ -109,7 +111,7 @@ func GetReviewers(chatId int64, authorId int64, reviewerCount int, getChatMember
 		}
 	}
 
-	logger.Debug("MEMBERS", "usedMemberIds", usedMemberIds, "vacantMembers", vacantMembers)
+	logger.Instance.Debugw("MEMBERS", "usedMemberIds", usedMemberIds, "vacantMembers", vacantMembers)
 
 	if len(vacantMembers) == 0 {
 		return []tg.ChatMember{}, errors.New("Кажется, что в данном чате нет пользователей, которые могут осуществлять ревью")

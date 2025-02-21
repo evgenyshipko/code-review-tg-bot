@@ -1,10 +1,10 @@
 package main
 
 import (
-	"code-review-tg-bot/src/logger"
-	"code-review-tg-bot/src/mergeRequest"
-	"code-review-tg-bot/src/reviewers"
-	"code-review-tg-bot/src/utils"
+	"code-review-tg-bot/internal/logger"
+	"code-review-tg-bot/internal/mergeRequest"
+	"code-review-tg-bot/internal/reviewers"
+	"code-review-tg-bot/internal/utils"
 	"fmt"
 	"os"
 	"strconv"
@@ -26,21 +26,21 @@ func main() {
 	// Получение последнего коммита
 	hash, message, err := utils.GetLastCommitInfo()
 	if err != nil {
-		logger.Error("Ошибка получения информации о последнем коммите", "error", err)
+		logger.Instance.Errorw("Ошибка получения информации о последнем коммите", "error", err)
 	} else {
-		logger.Info("Бот стартовал с последним коммитом", "hash", hash, "message", message)
+		logger.Instance.Infow("Бот стартовал с последним коммитом", "hash", hash, "message", message)
 	}
 
 	BotToken := os.Getenv("BOT_TOKEN")
 
-	err = tg.SetLogger(logger.Logger)
+	err = tg.SetLogger(logger.Instance)
 	if err != nil {
 		panic(err)
 	}
 
 	bot, err := tg.NewBotAPI(BotToken)
 	if err != nil {
-		logger.Error(err.Error())
+		logger.Instance.Error(err.Error())
 		panic(err)
 	}
 
@@ -63,14 +63,13 @@ func main() {
 //TODO: доступ только разрешенным разработчикам (и админам т.е завести админов)
 //TODO: реализовать команду отпуска
 //TODO: кеширование ручек/истории ревью во внешнем источнике (редис)
-//TODO: игнорить package-lock.json файл и папку с лендингами
 //TODO: если ссылка на определденный коммит, то делать ревью только этого коммита
 //TODO: сделать чтобы бот проставлял ревьюверов в гитлабе
 
 func mainLoopFunc(update tg.Update, bot *tg.BotAPI) {
 	defer func() {
 		if r := recover(); r != nil {
-			logger.Error("Паника перехвачена", "error", r, "stack", logger.GetStackTraceAsSlice())
+			logger.Instance.Error("Паника перехвачена", "error", r)
 
 			sendNewMessage(fmt.Sprintf("Что-то пошло не так: %s", r), bot, update)
 		}
@@ -81,7 +80,7 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI) {
 		return
 	}
 
-	logger.Info(fmt.Sprintf("[%s] %s", update.Message.From.UserName, update.Message.Text))
+	logger.Instance.Infow(fmt.Sprintf("[%s] %s", update.Message.From.UserName, update.Message.Text))
 
 	//RND: разобраться - что за параметр -1
 	urls := xurls.Strict.FindAllString(update.Message.Text, -1)
@@ -104,7 +103,7 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI) {
 		}
 
 		if err != nil {
-			logger.Error(err.Error())
+			logger.Instance.Error(err.Error())
 			sendNewMessage("Что-то пошло не так: "+err.Error(), bot, update)
 			return
 		}
@@ -133,7 +132,7 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI) {
 	reviewersCount := reviewers.GetReviewersCount(totalRowsChanged)
 	reviewersList, err := reviewers.GetReviewers(update.Message.Chat.ID, update.Message.From.ID, reviewersCount, bot.GetChatMember)
 	if err != nil {
-		logger.Error(err.Error())
+		logger.Instance.Error(err.Error())
 		sendNewMessage("Что-то пошло не так: "+err.Error(), bot, update)
 		return
 	}
@@ -164,6 +163,6 @@ func sendNewMessage(message string, bot *tg.BotAPI, update tg.Update) {
 	msg.ReplyToMessageID = update.Message.MessageID
 	_, err := bot.Send(msg)
 	if err != nil {
-		logger.Error("Ошибка отправки сообщения", "Сообщение не отправлено", err.Error())
+		logger.Instance.Error("Ошибка отправки сообщения", "Сообщение не отправлено", err.Error())
 	}
 }

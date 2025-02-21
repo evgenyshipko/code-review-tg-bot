@@ -1,10 +1,10 @@
 package mergeRequest
 
 import (
-	"code-review-tg-bot/src/file"
-	"code-review-tg-bot/src/logger"
-	"code-review-tg-bot/src/parser"
-	"code-review-tg-bot/src/requests"
+	"code-review-tg-bot/internal/file"
+	"code-review-tg-bot/internal/logger"
+	"code-review-tg-bot/internal/parser"
+	"code-review-tg-bot/internal/requests"
 	"os"
 	"strconv"
 	"strings"
@@ -39,7 +39,7 @@ func GetDataByUrl(url string) (DataExtended, error) {
 
 	stats, err := getStats(projectId, mergeRequestId, filesCount, mergeRequestData.SourceBranch)
 	if err != nil {
-		logger.Error("ERROR", "STATS CALCULATION", err.Error())
+		logger.Instance.Error("ERROR", "STATS CALCULATION", err.Error())
 		return DataExtended{mergeRequestData, requests.MergeRequestStats{}}, nil
 	}
 
@@ -49,6 +49,7 @@ func GetDataByUrl(url string) (DataExtended, error) {
 func getStats(projectID int, mergeRequestId int, filesCount int, gitBranch string) (requests.MergeRequestStats, error) {
 	diffs, err := requests.GetMergeRequestDiffs(projectID, mergeRequestId, filesCount)
 	if err != nil {
+		logger.Instance.Warnw("getStats - статистика не посчиталась", "err", err)
 		return requests.MergeRequestStats{}, err
 	}
 
@@ -75,13 +76,13 @@ MainDiffsLoop:
 
 			file1, err := requests.GetRawFile(projectID, filePath, gitBranch)
 			if err != nil {
-				logger.Error("ERROR WHEN GET RAW FILE", err.Error())
+				logger.Instance.Warnw("getStats - статистика не посчиталась 2", "err", err)
 				return requests.MergeRequestStats{}, err
 			}
 
 			fileLength := len(strings.Split(file1, "\n"))
 
-			logger.Debug("FILE_LEN", fileLength, "filePath", filePath)
+			logger.Instance.Debugw("FILE_LEN", fileLength, "filePath", filePath)
 
 			mergeRequestStats.Additions += fileLength
 			continue
