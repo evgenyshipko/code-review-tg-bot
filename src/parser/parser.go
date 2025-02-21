@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"code-review-tg-bot/src/logger"
 	"errors"
 	"fmt"
 	"os"
@@ -20,15 +19,11 @@ func ParseGitlabURL(url string) (projectName string, mergeRequestId int, err err
 	errMsg := "Переданная сссылка не содержит вадидного URL merge request"
 
 	if len(match) == 0 {
-		logger.Error(errMsg)
-
 		return "", 0, errors.New(errMsg)
 	}
 
 	mergeRequestIdInteger, err := strconv.Atoi(match[3])
 	if err != nil {
-		logger.Error(err.Error())
-
 		return "", 0, errors.New(errMsg + err.Error())
 	}
 
