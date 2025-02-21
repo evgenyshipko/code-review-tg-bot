@@ -6,12 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"math/rand"
 	"os"
 	"slices"
 	"strconv"
-
-	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 type ReviewerIds map[string]int64
@@ -27,8 +26,6 @@ func getChatMembers(chatId int64, getChatMember GetChatMemberType) ([]tg.ChatMem
 	err := json.Unmarshal([]byte(reviewersIdsStr), &reviewerIdsMap)
 
 	if err != nil {
-		logger.Error("Невозможно декодировать REVIEW_PARTICIPANTS_IDS", "REVIEW_PARTICIPANTS_IDS", err.Error())
-
 		return []tg.ChatMember{}, fmt.Errorf("ошибка декода переменной REVIEW_PARTICIPANTS_IDS: %s. %s", reviewersIdsStr, err.Error())
 	}
 
@@ -91,8 +88,6 @@ func GetReviewers(chatId int64, authorId int64, reviewerCount int, getChatMember
 
 	chatMembers, err := getChatMembers(chatId, getChatMember)
 	if err != nil {
-		logger.Error("Невозможно получить список участников чата", "getChatMembers", err.Error())
-
 		return []tg.ChatMember{}, err
 	}
 
