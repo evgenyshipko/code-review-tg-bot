@@ -106,8 +106,9 @@ type MergeRequestCommit struct {
 }
 
 type MergeRequestStats struct {
-	Additions int `json:"additions"`
-	Deletions int `json:"deletions"`
+	Additions int     `json:"additions"`
+	Deletions int     `json:"deletions"`
+	Extra     *string `json:"extra,omitempty"`
 }
 
 type MergeRequestDiff struct {
