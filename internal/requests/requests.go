@@ -87,9 +87,7 @@ func GetProjectId(projectPathName string) (int, error) {
 	var data ProjectData
 	path := fmt.Sprintf("projects/%s", projectPathName)
 
-	if err := doGitlabGet(path, &data); err != nil {
-		return 0, err
-	}
+	doGitlabGet(path, &data)
 
 	return data.ID, nil
 }
@@ -98,18 +96,16 @@ func GetMergeRequestData(projectID int, mergeRequestId int, commitHash string) (
 	var data MergeRequestData
 	path := fmt.Sprintf("projects/%d/merge_requests/%d", projectID, mergeRequestId)
 
-	if err := doGitlabGet(path, &data); err != nil {
-		return MergeRequestData{}, err
-	}
+	doGitlabGet(path, &data)
 
 	return MergeRequestData{
-		data.Title,
-		data.HasConflicts,
-		data.Url,
-		data.ChangesCount,
-		data.SourceBranch,
-		data.Description,
-		commitHash,
+		Title:        data.Title,
+		HasConflicts: data.HasConflicts,
+		Description:  data.Description,
+		Url:          data.Url,
+		ChangesCount: data.ChangesCount,
+		SourceBranch: data.SourceBranch,
+		CommitHash:   commitHash,
 	}, nil
 
 }
