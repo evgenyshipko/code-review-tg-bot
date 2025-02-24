@@ -98,5 +98,10 @@ MainDiffsLoop:
 		}
 	}
 
+	if mergeRequestStats.Additions == 0 && mergeRequestStats.Deletions == 0 {
+		str := "Размер мр-а не посчитан, т.к. он либо не содержит файлов, либо они все проигнорированы"
+		mergeRequestStats.Extra = &str
+	}
+
 	return mergeRequestStats, nil
 }

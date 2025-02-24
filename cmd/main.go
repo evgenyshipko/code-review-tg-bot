@@ -145,7 +145,9 @@ func generateMessageText(data []mergeRequest.DataExtended, reviewerList []tg.Cha
 	msg := "Требуется ревью:"
 	for _, dataEntity := range data {
 		msg += "\n" + fmt.Sprintf("<a href=\"%s\">%s</a>", dataEntity.Url, dataEntity.Title)
-		if dataEntity.Additions > 0 || dataEntity.Deletions > 0 {
+		if dataEntity.Extra != nil {
+			msg += "\n" + *dataEntity.Extra
+		} else if dataEntity.Additions > 0 || dataEntity.Deletions > 0 {
 			msg += "\n" + fmt.Sprintf("Размер: +%d -%d", dataEntity.Additions, dataEntity.Deletions)
 		}
 	}
