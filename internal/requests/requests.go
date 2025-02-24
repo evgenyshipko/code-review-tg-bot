@@ -20,6 +20,7 @@ type MergeRequestData struct {
 	Url          string `json:"web_url"`
 	ChangesCount string `json:"changes_count"`
 	SourceBranch string `json:"source_branch"`
+	CommitHash   string `json:"-"`
 }
 
 type HTTPClient struct {
@@ -86,18 +87,30 @@ func GetProjectId(projectPathName string) (int, error) {
 	var data ProjectData
 	path := fmt.Sprintf("projects/%s", projectPathName)
 
-	doGitlabGet(path, &data)
+	if err := doGitlabGet(path, &data); err != nil {
+		return 0, err
+	}
 
 	return data.ID, nil
 }
 
-func GetMergeRequestData(projectID int, mergeRequestId int) (MergeRequestData, error) {
+func GetMergeRequestData(projectID int, mergeRequestId int, commitHash string) (MergeRequestData, error) {
 	var data MergeRequestData
 	path := fmt.Sprintf("projects/%d/merge_requests/%d", projectID, mergeRequestId)
 
-	doGitlabGet(path, &data)
+	if err := doGitlabGet(path, &data); err != nil {
+		return MergeRequestData{}, err
+	}
 
-	return data, nil
+	return MergeRequestData{
+		data.Title,
+		data.HasConflicts,
+		data.Url,
+		data.ChangesCount,
+		data.SourceBranch,
+		data.Description,
+		commitHash,
+	}, nil
 
 }
 
@@ -122,7 +135,7 @@ type MergeRequestDiffResponse struct {
 	Changes []MergeRequestDiff `json:"changes"`
 }
 
-func GetMergeRequestDiffs(projectID int, mergeRequestId int, pageSize int) ([]MergeRequestDiff, error) {
+func GetMergeRequestDiffs(projectID int, mergeRequestId int) ([]MergeRequestDiff, error) {
 	var data MergeRequestDiffResponse
 	path := fmt.Sprintf("projects/%d/merge_requests/%d/changes?access_raw_diffs=true", projectID, mergeRequestId)
 
@@ -142,6 +155,18 @@ func GetRawFile(projectID int, filePath, gitBranch string) (string, error) {
 
 	if err := doGitlabGet(path, &data); err != nil {
 		return "", err
+	}
+
+	return data, nil
+}
+
+func GetCommitDiffs(projectID int, commitSHA string) ([]MergeRequestDiff, error) {
+	var data []MergeRequestDiff
+	path := fmt.Sprintf("projects/%d/repository/commits/%s/diff", projectID, commitSHA)
+
+	err := doGitlabGet(path, &data, false)
+	if err != nil {
+		return []MergeRequestDiff{}, err
 	}
 
 	return data, nil

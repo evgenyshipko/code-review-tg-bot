@@ -6,7 +6,6 @@ import (
 	"code-review-tg-bot/internal/parser"
 	"code-review-tg-bot/internal/requests"
 	"os"
-	"strconv"
 	"strings"
 )
 
@@ -16,28 +15,35 @@ type DataExtended struct {
 }
 
 func GetDataByUrl(url string) (DataExtended, error) {
-	encodedQueryPathProject, mergeRequestId, parseErr := parser.ParseGitlabURL(url)
+	encodedQueryPathProject, mergeRequestId, commitHash, parseErr := parser.ParseGitlabURL(url)
 	if parseErr != nil {
 		return DataExtended{}, parseErr
 	}
 
-	//TODO: projectId - неизменяемая информация, поэтому надо уметь результат этой ручки мемоизировать
 	projectId, err := requests.GetProjectId(encodedQueryPathProject)
 	if err != nil {
 		return DataExtended{}, err
 	}
 
-	mergeRequestData, err := requests.GetMergeRequestData(projectId, mergeRequestId)
+	mergeRequestData, err := requests.GetMergeRequestData(projectId, mergeRequestId, commitHash)
 	if err != nil {
 		return DataExtended{}, err
 	}
 
-	filesCount, err := strconv.Atoi(mergeRequestData.ChangesCount)
-	if err != nil {
-		filesCount = 20
+	var diffs []requests.MergeRequestDiff
+	if commitHash != "" {
+		diffs, err = requests.GetCommitDiffs(projectId, commitHash)
+	} else {
+		diffs, err = requests.GetMergeRequestDiffs(projectId, mergeRequestId)
+
 	}
 
-	stats, err := getStats(projectId, mergeRequestId, filesCount, mergeRequestData.SourceBranch)
+	if err != nil {
+		return DataExtended{}, err
+	}
+
+	stats, err := getStats(projectId, diffs, mergeRequestData.SourceBranch)
+
 	if err != nil {
 		logger.Instance.Error("ERROR", "STATS CALCULATION", err.Error())
 		return DataExtended{mergeRequestData, requests.MergeRequestStats{}}, nil
@@ -46,12 +52,7 @@ func GetDataByUrl(url string) (DataExtended, error) {
 	return DataExtended{mergeRequestData, stats}, nil
 }
 
-func getStats(projectID int, mergeRequestId int, filesCount int, gitBranch string) (requests.MergeRequestStats, error) {
-	diffs, err := requests.GetMergeRequestDiffs(projectID, mergeRequestId, filesCount)
-	if err != nil {
-		logger.Instance.Warnw("getStats - статистика не посчиталась", "err", err)
-		return requests.MergeRequestStats{}, err
-	}
+func getStats(projectID int, diffs []requests.MergeRequestDiff, gitBranch string) (requests.MergeRequestStats, error) {
 
 	mergeRequestStats := requests.MergeRequestStats{}
 MainDiffsLoop:
@@ -69,14 +70,13 @@ MainDiffsLoop:
 
 		if diff.NewFile {
 			filePath := diff.NewPath
-
 			if !file.IsCodeFile(filePath) {
 				continue
 			}
 
 			file1, err := requests.GetRawFile(projectID, filePath, gitBranch)
 			if err != nil {
-				logger.Instance.Warnw("getStats - статистика не посчиталась 2", "err", err)
+				logger.Instance.Warnw("getStats - статистика не посчиталась", "err", err)
 				return requests.MergeRequestStats{}, err
 			}
 

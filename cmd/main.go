@@ -142,13 +142,22 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI) {
 }
 
 func generateMessageText(data []mergeRequest.DataExtended, reviewerList []tg.ChatMember) string {
-	msg := "Требуется ревью:"
+	msg := "Требуется ревью"
+
 	for _, dataEntity := range data {
-		msg += "\n" + fmt.Sprintf("<a href=\"%s\">%s</a>", dataEntity.Url, dataEntity.Title)
+
+		if dataEntity.CommitHash != "" {
+			msg += " коммита:\n" + fmt.Sprintf("<a href=\"%s/diffs?commit_id=%s\">%s</a>\nКоммит: %s",
+				dataEntity.Url, dataEntity.CommitHash, dataEntity.Title, dataEntity.CommitHash)
+		} else {
+			msg += ":\n" + fmt.Sprintf("<a href=\"%s\">%s</a>", dataEntity.Url, dataEntity.Title)
+		}
+
 		if dataEntity.Extra != nil {
 			msg += "\n" + *dataEntity.Extra
 		} else if dataEntity.Additions > 0 || dataEntity.Deletions > 0 {
 			msg += "\n" + fmt.Sprintf("Размер: +%d -%d", dataEntity.Additions, dataEntity.Deletions)
+
 		}
 	}
 
