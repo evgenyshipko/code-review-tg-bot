@@ -62,7 +62,7 @@ func getStats(diffs []requests.MergeRequestDiff) (requests.MergeRequestStats, er
 			continue
 		}
 
-		additions, deletions := countAdditionsAndDeletionsRaws(diff.Diff)
+		additions, deletions := countAdditionsAndDeletionsRows(diff.Diff)
 		mergeRequestStats.Additions += additions
 		mergeRequestStats.Deletions += deletions
 	}
@@ -97,7 +97,7 @@ func shouldIgnorePath(path string, ignoredPaths []string) bool {
 }
 
 // Подсчитывает добавленные/удаленные строки
-func countAdditionsAndDeletionsRaws(diff string) (int, int) {
+func countAdditionsAndDeletionsRows(diff string) (int, int) {
 	var additions, deletions int
 
 	for _, line := range strings.Split(diff, "\n") {
