@@ -115,3 +115,42 @@ func TestParseGitlabUrlParsedDifferentProjects(t *testing.T) {
 	assert.Equal(t, 242, mergeRequestId)
 	assert.Nil(t, err)
 }
+func TestParseGitlabUrlParsedCommitHash(t *testing.T) {
+	os.Setenv("GITLAB_DOMAIN", "gitlab.zxz.su")
+	gitlabDomain := os.Getenv("GITLAB_DOMAIN")
+
+	commHashTest := "379f6c020cf8668a3bf5666bad8773aa4f8fe55d"
+	mrIDTest := 1337
+
+	_, _, commitHash, err := ParseGitlabURL(fmt.Sprintf("https://%s/ugc/web/ads-backend/-/merge_requests/%d/diffs?commit_id=%s", gitlabDomain, mrIDTest, commHashTest))
+	assert.Equal(t, commHashTest, commitHash)
+	assert.Nil(t, err)
+}
+
+func TestParseGitlabURLNotValidLengthCommitHash(t *testing.T) {
+	os.Setenv("GITLAB_DOMAIN", "gitlab.zxz.su")
+	gitlabDomain := os.Getenv("GITLAB_DOMAIN")
+
+	invalidCommitHash := "379f6c020cf8"
+	_, _, _, err := ParseGitlabURL(fmt.Sprintf(
+		"https://%s/ugc/web/ads-backend/-/merge_requests/1/diffs?commit_id=%s", gitlabDomain, invalidCommitHash,
+	))
+	assert.NotNil(t, err)
+	assert.Contains(t, err.Error(), "переданная ссылка содержит некорректный хэш коммита")
+}
+
+func TestParseGitlabURLNoCommitHash(t *testing.T) {
+	os.Setenv("GITLAB_DOMAIN", "gitlab.zxz.su")
+	gitlabDomain := os.Getenv("GITLAB_DOMAIN")
+
+	mrIDTest := 1337
+	projectNameTest := "ugc%2Fweb%2Fads-backend"
+
+	projectName, mergeRequestId, commitHash, err := ParseGitlabURL(fmt.Sprintf(
+		"https://%s/ugc/web/ads-backend/-/merge_requests/%d", gitlabDomain, mrIDTest,
+	))
+	assert.Equal(t, projectNameTest, projectName)
+	assert.Equal(t, "", commitHash)
+	assert.Equal(t, mrIDTest, mergeRequestId)
+	assert.Nil(t, err)
+}

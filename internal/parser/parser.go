@@ -21,7 +21,7 @@ func ParseGitlabURL(url1 string) (encodedQueryPathProject string, mergeRequestId
 	re := regexp.MustCompile(regex)
 	match := re.FindStringSubmatch(url1)
 
-	errMsg := "Переданная сссылка не содержит вадидного URL merge request"
+	errMsg := "переданная сссылка не содержит вадидного URL merge request"
 
 	if len(match) == 0 {
 		return "", 0, "", errors.New(errMsg)
@@ -34,6 +34,14 @@ func ParseGitlabURL(url1 string) (encodedQueryPathProject string, mergeRequestId
 
 	encodedQueryPathProject = url.QueryEscape(match[1] + "/" + match[2])
 	commitHash = match[4]
+
+	if commitHash != "" {
+		validLengthForCommitHash := 40
+		if len(commitHash) != validLengthForCommitHash {
+			errMsg = "переданная ссылка содержит некорректный хэш коммита"
+			return "", 0, "", errors.New(errMsg)
+		}
+	}
 
 	return encodedQueryPathProject, mergeRequestIdInteger, commitHash, nil
 }

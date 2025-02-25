@@ -20,6 +20,7 @@ func GetDataByUrl(url string) (DataExtended, error) {
 		return DataExtended{}, parseErr
 	}
 
+	//TODO: projectId - неизменяемая информация, поэтому надо уметь результат этой ручки мемоизировать
 	projectId, err := requests.GetProjectId(encodedQueryPathProject)
 	if err != nil {
 		return DataExtended{}, err
