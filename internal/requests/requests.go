@@ -3,7 +3,6 @@ package requests
 import (
 	"code-review-tg-bot/internal/logger"
 	"fmt"
-	"net/url"
 	"os"
 
 	"github.com/go-resty/resty/v2"
@@ -135,6 +134,7 @@ type MergeRequestDiffResponse struct {
 	Changes []MergeRequestDiff `json:"changes"`
 }
 
+// Получает диффы мр-а
 func GetMergeRequestDiffs(projectID int, mergeRequestId int) ([]MergeRequestDiff, error) {
 	var data MergeRequestDiffResponse
 	path := fmt.Sprintf("projects/%d/merge_requests/%d/changes?access_raw_diffs=true", projectID, mergeRequestId)
@@ -147,19 +147,7 @@ func GetMergeRequestDiffs(projectID int, mergeRequestId int) ([]MergeRequestDiff
 	return data.Changes, nil
 }
 
-func GetRawFile(projectID int, filePath, gitBranch string) (string, error) {
-	var data string
-	path := fmt.Sprintf("projects/%d/repository/files/%s/raw?ref=%s", projectID,
-		url.QueryEscape(filePath),
-		gitBranch)
-
-	if err := doGitlabGet(path, &data); err != nil {
-		return "", err
-	}
-
-	return data, nil
-}
-
+// Получает диффы коммита
 func GetCommitDiffs(projectID int, commitSHA string) ([]MergeRequestDiff, error) {
 	var data []MergeRequestDiff
 	path := fmt.Sprintf("projects/%d/repository/commits/%s/diff", projectID, commitSHA)

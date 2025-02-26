@@ -1,7 +1,6 @@
 package mergeRequest
 
 import (
-	"code-review-tg-bot/internal/file"
 	"code-review-tg-bot/internal/logger"
 	"code-review-tg-bot/internal/parser"
 	"code-review-tg-bot/internal/requests"
@@ -43,7 +42,7 @@ func GetDataByUrl(url string) (DataExtended, error) {
 		return DataExtended{}, err
 	}
 
-	stats, err := getStats(projectId, diffs, mergeRequestData.SourceBranch)
+	stats, err := getStats(diffs)
 
 	if err != nil {
 		logger.Instance.Error("ERROR", "STATS CALCULATION", err.Error())
@@ -53,56 +52,62 @@ func GetDataByUrl(url string) (DataExtended, error) {
 	return DataExtended{mergeRequestData, stats}, nil
 }
 
-func getStats(projectID int, diffs []requests.MergeRequestDiff, gitBranch string) (requests.MergeRequestStats, error) {
-
+// Вычисляет статистику мр-а
+func getStats(diffs []requests.MergeRequestDiff) (requests.MergeRequestStats, error) {
 	mergeRequestStats := requests.MergeRequestStats{}
-MainDiffsLoop:
+	ignoredPaths := getIgnoredPaths()
+
 	for _, diff := range diffs {
-
-		ignorePaths := os.Getenv("IGNORE_PATHS")
-		if ignorePaths != "" {
-			ignorePathsSlice := strings.Split(ignorePaths, ",")
-			for _, ignorePath := range ignorePathsSlice {
-				if strings.Contains(diff.NewPath, ignorePath) {
-					continue MainDiffsLoop
-				}
-			}
-		}
-
-		if diff.NewFile {
-			filePath := diff.NewPath
-			if !file.IsCodeFile(filePath) {
-				continue
-			}
-
-			file1, err := requests.GetRawFile(projectID, filePath, gitBranch)
-			if err != nil {
-				logger.Instance.Warnw("getStats - статистика не посчиталась", "err", err)
-				return requests.MergeRequestStats{}, err
-			}
-
-			fileLength := len(strings.Split(file1, "\n"))
-
-			logger.Instance.Debugw("FILE_LEN", fileLength, "filePath", filePath)
-
-			mergeRequestStats.Additions += fileLength
+		if shouldIgnorePath(diff.NewPath, ignoredPaths) {
 			continue
 		}
 
-		for _, line := range strings.Split(diff.Diff, "\n") {
-			if strings.HasPrefix(line, "-") {
-				mergeRequestStats.Deletions++
-			}
-			if strings.HasPrefix(line, "+") {
-				mergeRequestStats.Additions++
-			}
-		}
+		additions, deletions := countAdditionsAndDeletionsRows(diff.Diff)
+		mergeRequestStats.Additions += additions
+		mergeRequestStats.Deletions += deletions
 	}
 
 	if mergeRequestStats.Additions == 0 && mergeRequestStats.Deletions == 0 {
-		str := "Размер мр-а не посчитан, т.к. он либо не содержит файлов, либо они все проигнорированы"
-		mergeRequestStats.Extra = &str
+		message := "Размер мр-а не посчитан, т.к. он либо не содержит файлов, либо они все проигнорированы"
+		mergeRequestStats.Extra = &message
 	}
 
 	return mergeRequestStats, nil
+}
+
+// Загружает список путей из IGNORE_PATH для игнорирования
+func getIgnoredPaths() []string {
+	ignorePaths := os.Getenv("IGNORE_PATHS")
+	if ignorePaths == "" {
+		return nil
+	}
+
+	return strings.Split(ignorePaths, ",")
+}
+
+// Проверяет, нужно ли игнорировать путь
+func shouldIgnorePath(path string, ignoredPaths []string) bool {
+	for _, ignorePath := range ignoredPaths {
+		if strings.Contains(path, ignorePath) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// Подсчитывает добавленные/удаленные строки
+func countAdditionsAndDeletionsRows(diff string) (int, int) {
+	var additions, deletions int
+
+	for _, line := range strings.Split(diff, "\n") {
+		if strings.HasPrefix(line, "+") {
+			additions++
+		}
+		if strings.HasPrefix(line, "-") {
+			deletions++
+		}
+	}
+
+	return additions, deletions
 }
