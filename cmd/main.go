@@ -1,6 +1,7 @@
 package main
 
 import (
+	"code-review-tg-bot/internal/access"
 	"code-review-tg-bot/internal/logger"
 	"code-review-tg-bot/internal/mergeRequest"
 	"code-review-tg-bot/internal/reviewers"
@@ -81,6 +82,12 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI) {
 	}
 
 	logger.Instance.Infow(fmt.Sprintf("[%s] %s", update.Message.From.UserName, update.Message.Text))
+
+	// Проверяем доступ пользователя
+	if !access.HasAccess(update.Message.From.ID) {
+		sendNewMessage(access.GetAccessDeniedMessage(update.Message.From.UserName), bot, update)
+		return
+	}
 
 	//RND: разобраться - что за параметр -1
 	urls := xurls.Strict.FindAllString(update.Message.Text, -1)
