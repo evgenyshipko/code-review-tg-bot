@@ -6,11 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"math/rand"
 	"os"
 	"slices"
 	"strconv"
+
+	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 type ReviewerIds map[string]int64
@@ -73,8 +74,16 @@ func GetReviewersCount(changedRows int) (reviewerCount int) {
 	return reviewerCount
 }
 
-func setChatUsedReviewersData(chatId int64, usedMembers *usedMembersType) {
-	storage.Set("chat"+strconv.FormatInt(chatId, 10), &usedMembers)
+func setChatUsedReviewersData(chatId int64, newUsedMembers *usedMembersType) {
+	// Получение существующих ревьюеров
+	existingUsedMembers := getChatUsedReviewersData(chatId)
+
+	// Объединение существующих и новых ревьюеров
+	for userId, isUsed := range *newUsedMembers {
+		(*existingUsedMembers)[userId] = isUsed
+	}
+
+	storage.Set("chat"+strconv.FormatInt(chatId, 10), existingUsedMembers)
 }
 
 func getChatUsedReviewersData(chatId int64) *usedMembersType {

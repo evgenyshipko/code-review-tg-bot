@@ -4,6 +4,7 @@ import (
 	"code-review-tg-bot/internal/access"
 	"code-review-tg-bot/internal/logger"
 	"code-review-tg-bot/internal/mergeRequest"
+	"code-review-tg-bot/internal/redis"
 	"code-review-tg-bot/internal/reviewers"
 	"code-review-tg-bot/internal/utils"
 	"fmt"
@@ -24,6 +25,13 @@ func init() {
 }
 
 func main() {
+	// Инициализация Redis
+	err := redis.Init()
+	if err != nil {
+		logger.Instance.Errorw("Ошибка инициализации Redis", "error", err)
+		panic(err)
+	}
+
 	// Получение последнего коммита
 	hash, message, err := utils.GetLastCommitInfo()
 	if err != nil {
