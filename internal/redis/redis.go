@@ -10,10 +10,16 @@ import (
 )
 
 var (
-	client *redis.Client
+	client *RedisClient
 	ctx    = context.Background()
 )
 
+type RedisClient struct {
+	client    *redis.Client
+	namespace string
+}
+
+// Init инициализирует Redis-клиент
 func Init() error {
 	if client != nil {
 		return nil
@@ -21,21 +27,16 @@ func Init() error {
 
 	redisHost := os.Getenv("REDIS_HOST")
 	redisPort := os.Getenv("REDIS_PORT")
-	redisPassword := os.Getenv("REDIS_PASSWORD")
 
 	if redisHost == "" || redisPort == "" {
 		return fmt.Errorf("необходимо указать REDIS_HOST и REDIS_PORT")
 	}
 
-	// Конфиг
-	client = redis.NewClient(&redis.Options{
-		Addr:     fmt.Sprintf("%s:%s", redisHost, redisPort),
-		Password: redisPassword,
-		DB:       0,
-	})
+	// Создаем глобальный клиент
+	client = NewRedisClient(fmt.Sprintf("%s:%s", redisHost, redisPort), os.Getenv("APP_ENVIRONMENT"))
 
 	// Проверка подключения
-	_, err := client.Ping(ctx).Result()
+	_, err := client.client.Ping(ctx).Result()
 	if err != nil {
 		return fmt.Errorf("ошибка подключения к Redis: %w", err)
 	}
@@ -43,26 +44,35 @@ func Init() error {
 	return nil
 }
 
-func Set(key string, value interface{}, expiration time.Duration) error {
-	if client == nil {
-		return fmt.Errorf("redis клиент не инициализирован")
-	}
-
-	return client.Set(ctx, key, value, expiration).Err()
+// Фабрика для клиента с namespace
+func NewRedisClient(addr, namespace string) *RedisClient {
+	rdb := redis.NewClient(&redis.Options{
+		Addr: addr,
+	})
+	return &RedisClient{client: rdb, namespace: namespace}
 }
 
-func Get(key string) (string, error) {
-	if client == nil {
-		return "", fmt.Errorf("redis клиент не инициализирован")
-	}
-
-	return client.Get(ctx, key).Result()
+// Добавление namespace к ключу
+func (r *RedisClient) withNamespace(key string) string {
+	return r.namespace + ":" + key
 }
 
-func Delete(key string) error {
-	if client == nil {
-		return fmt.Errorf("redis клиент не инициализирован")
-	}
+// Set записывает значение
+func (r *RedisClient) Set(key string, value interface{}, expiration time.Duration) error {
+	return r.client.Set(ctx, r.withNamespace(key), value, expiration).Err()
+}
 
-	return client.Del(ctx, key).Err()
+// Get получает значение
+func (r *RedisClient) Get(key string) (string, error) {
+	return r.client.Get(ctx, r.withNamespace(key)).Result()
+}
+
+// Delete удаляет ключ
+func (r *RedisClient) Delete(key string) error {
+	return r.client.Del(ctx, r.withNamespace(key)).Err()
+}
+
+// GetClient возвращает глобальный клиент
+func GetClient() *RedisClient {
+	return client
 }

@@ -16,7 +16,7 @@ func Set(key string, value interface{}) {
 		panic(err)
 	}
 
-	err = redis.Set(key, string(result), defaultExpiration)
+	err = redis.GetClient().Set(key, string(result), defaultExpiration)
 	if err != nil {
 		logger.Instance.Error("Ошибка сохранения в Redis", "error", err)
 		panic(err)
@@ -26,7 +26,7 @@ func Set(key string, value interface{}) {
 }
 
 func Get(key string, result interface{}) bool {
-	value, err := redis.Get(key)
+	value, err := redis.GetClient().Get(key)
 
 	if err != nil {
 		logger.Instance.Debugw("GET RAW FROM STORAGE", "key", key, "error", err.Error())
@@ -44,7 +44,7 @@ func Get(key string, result interface{}) bool {
 }
 
 func Delete(key string) {
-	err := redis.Delete(key)
+	err := redis.GetClient().Delete(key)
 
 	if err != nil {
 		logger.Instance.Error("Ошибка удаления из Redis", "error", err.Error())
