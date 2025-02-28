@@ -29,7 +29,6 @@ func main() {
 	err := redis.Init()
 	if err != nil {
 		logger.Instance.Errorw("Ошибка инициализации Redis", "error", err)
-		panic(err)
 	}
 
 	// Получение последнего коммита

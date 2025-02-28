@@ -13,13 +13,11 @@ func Set(key string, value interface{}) {
 	result, err := json.Marshal(value)
 	if err != nil {
 		logger.Instance.Error("Ошибка сериализации в Redis", "error", err.Error())
-		panic(err)
 	}
 
 	err = redis.GetClient().Set(key, string(result), defaultExpiration)
 	if err != nil {
 		logger.Instance.Error("Ошибка сохранения в БД", "error", err)
-		panic(err)
 	}
 
 	logger.Instance.Debugw("Установлено значение в БД", "key", key, "value", value)
@@ -36,7 +34,6 @@ func Get(key string, result interface{}) bool {
 	err = json.Unmarshal([]byte(value), &result)
 	if err != nil {
 		logger.Instance.Error(err.Error())
-		panic(err)
 	}
 
 	logger.Instance.Debugw("Получение unmarshalled значения из БД", "key", key, "value", value)
