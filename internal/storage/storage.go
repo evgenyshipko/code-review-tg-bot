@@ -12,24 +12,24 @@ const defaultExpiration = 24 * time.Hour
 func Set(key string, value interface{}) {
 	result, err := json.Marshal(value)
 	if err != nil {
-		logger.Instance.Error(err.Error())
+		logger.Instance.Error("Ошибка сериализации в Redis", "error", err.Error())
 		panic(err)
 	}
 
 	err = redis.GetClient().Set(key, string(result), defaultExpiration)
 	if err != nil {
-		logger.Instance.Error("Ошибка сохранения в Redis", "error", err)
+		logger.Instance.Error("Ошибка сохранения в БД", "error", err)
 		panic(err)
 	}
 
-	logger.Instance.Debugw("STORAGE SET", "key", key, "value", value)
+	logger.Instance.Debugw("Установлено значение в БД", "key", key, "value", value)
 }
 
 func Get(key string, result interface{}) bool {
 	value, err := redis.GetClient().Get(key)
 
 	if err != nil {
-		logger.Instance.Debugw("GET RAW FROM STORAGE", "key", key, "error", err.Error())
+		logger.Instance.Debugw("Ключ не найден в БД:", "key", key, "error", err.Error())
 		return false
 	}
 
@@ -39,7 +39,7 @@ func Get(key string, result interface{}) bool {
 		panic(err)
 	}
 
-	logger.Instance.Debugw("GET UNMARSHALLED FROM STORAGE", "key", key, "value", value)
+	logger.Instance.Debugw("Получение unmarshalled значения из БД", "key", key, "value", value)
 	return true
 }
 
