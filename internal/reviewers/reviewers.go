@@ -82,12 +82,14 @@ func setChatUsedReviewersData(chatId int64, newUsedMembers *usedMembersType) {
 	for userId, isUsed := range *newUsedMembers {
 		(*existingUsedMembers)[userId] = isUsed
 	}
-
+	storage := storage.NewStorage()
 	storage.Set("chat"+strconv.FormatInt(chatId, 10), existingUsedMembers)
 }
 
 func getChatUsedReviewersData(chatId int64) *usedMembersType {
 	var usedMembers usedMembersType
+	storage := storage.NewStorage()
+
 	exists := storage.Get("chat"+strconv.FormatInt(chatId, 10), &usedMembers)
 	if !exists {
 		usedMembers = usedMembersType{}
