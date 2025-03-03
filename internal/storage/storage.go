@@ -5,6 +5,7 @@ import (
 	"code-review-tg-bot/internal/memoryStorage"
 	"code-review-tg-bot/internal/redis"
 	"code-review-tg-bot/internal/redisStorage"
+	"os"
 )
 
 type Storage interface {
@@ -13,13 +14,25 @@ type Storage interface {
 	Delete(key string)
 }
 
-func InitStorage() Storage {
-	err := redis.Init()
+func InitStorage() (Storage, error) {
+	redisHost := os.Getenv("REDIS_HOST")
+	redisPort := os.Getenv("REDIS_PORT")
+	var err error
+
+	if redisHost == "" && redisPort == "" {
+		logger.Instance.Debug("Ошибка инициализации Redis, используется Memory")
+
+		return memoryStorage.NewMemoryStorage(), nil
+	}
+
+	err = redis.Init()
 	if err != nil {
-		logger.Instance.Debugf("Ошибка инициализации Redis, используется Memory", "error", err)
-		return memoryStorage.NewMemoryStorage()
+		logger.Instance.Error("Ошибка инициализации Redis", "error", err)
+		return nil, err
+
 	}
 
 	logger.Instance.Info("Успешная инициализации Redis")
-	return redisStorage.NewRedisStorage(redis.GetClient())
+	return redisStorage.NewRedisStorage(redis.GetClient()), nil
+
 }
