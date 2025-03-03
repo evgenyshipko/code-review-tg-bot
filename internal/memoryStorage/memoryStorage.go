@@ -24,8 +24,7 @@ func (s *MemoryStorage) Set(key string, value interface{}) {
 
 	result, err := json.Marshal(value)
 	if err != nil {
-		logger.Instance.Error(err.Error())
-		panic(err)
+		logger.Instance.Error("Ошибка сериализации", err.Error())
 	}
 
 	s.data[key] = string(result)
