@@ -22,7 +22,7 @@ type RedisClient struct {
 // Init инициализирует Redis-клиент
 func Init() error {
 	if client != nil {
-		return nil
+		return fmt.Errorf("redis client уже инициализирован")
 	}
 
 	redisHost := os.Getenv("REDIS_HOST")
