@@ -4,8 +4,8 @@ import (
 	"code-review-tg-bot/internal/access"
 	"code-review-tg-bot/internal/logger"
 	"code-review-tg-bot/internal/mergeRequest"
-	"code-review-tg-bot/internal/redis"
 	"code-review-tg-bot/internal/reviewers"
+	"code-review-tg-bot/internal/storage"
 	"code-review-tg-bot/internal/utils"
 	"fmt"
 	"os"
@@ -25,10 +25,10 @@ func init() {
 }
 
 func main() {
-	// Инициализация Redis
-	err := redis.Init()
+	// Инициализация хранилища
+	err := storage.InitStorage()
 	if err != nil {
-		logger.Instance.Errorw("Ошибка инициализации Redis", "error", err)
+		logger.Instance.Errorw("Ошибка инициализации хранилища", "error", err)
 	}
 
 	// Получение последнего коммита
