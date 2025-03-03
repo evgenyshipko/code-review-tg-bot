@@ -26,10 +26,7 @@ func init() {
 
 func main() {
 	// Инициализация хранилища
-	storageInstance, err := storage.InitStorage()
-	if err != nil {
-		logger.Instance.Errorw("Ошибка инициализации хранилища", "error", err)
-	}
+	storageInstance := storage.InitStorage()
 
 	// Получение последнего коммита
 	hash, message, err := utils.GetLastCommitInfo()

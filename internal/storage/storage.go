@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"code-review-tg-bot/internal/logger"
 	"code-review-tg-bot/internal/memoryStorage"
 	"code-review-tg-bot/internal/redis"
 	"code-review-tg-bot/internal/redisStorage"
@@ -12,11 +13,13 @@ type Storage interface {
 	Delete(key string)
 }
 
-func InitStorage() (Storage, error) {
+func InitStorage() Storage {
 	err := redis.Init()
 	if err != nil {
-		return memoryStorage.NewMemoryStorage(), err
+		logger.Instance.Debugf("Ошибка инициализации Redis, используется Memory", "error", err)
+		return memoryStorage.NewMemoryStorage()
 	}
 
-	return redisStorage.NewRedisStorage(redis.GetClient()), nil
+	logger.Instance.Info("Успешная инициализации Redis")
+	return redisStorage.NewRedisStorage(redis.GetClient())
 }
