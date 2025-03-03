@@ -2,6 +2,8 @@ package reviewers
 
 import (
 	"code-review-tg-bot/internal/logger"
+	"code-review-tg-bot/internal/memoryStorage"
+	"code-review-tg-bot/internal/redisStorage"
 	"code-review-tg-bot/internal/storage"
 	"encoding/json"
 	"errors"
@@ -25,13 +27,11 @@ type GetReviewerFunc func(chatId int64, authorId int64, changedRowsCount int) ([
 type ReviewersStorage map[int64]usedMembersType
 
 type ReviewersService struct {
-	bot     *tg.BotAPI
 	storage storage.Storage
 }
 
 func NewReviewersService(bot *tg.BotAPI, storage storage.Storage) *ReviewersService {
 	return &ReviewersService{
-		bot:     bot,
 		storage: storage,
 	}
 }
@@ -87,16 +87,24 @@ func (rs *ReviewersService) GetReviewersCount(changedRows int) (reviewerCount in
 }
 
 func (rs *ReviewersService) setChatUsedReviewersData(chatId int64, newUsedMembers *usedMembersType) {
-	// Получение существующих ревьюеров
-	existingUsedMembers := rs.getChatUsedReviewersData(chatId)
+	// Проверка типа хранилища
+	switch rs.storage.(type) {
+	case *redisStorage.RedisStorage:
+		// Получение существующих ревьюеров
+		existingUsedMembers := rs.getChatUsedReviewersData(chatId)
 
-	// Объединение существующих и новых ревьюеров
-	for userId, isUsed := range *newUsedMembers {
-		(*existingUsedMembers)[userId] = isUsed
+		// Объединение существующих и новых ревьюеров
+		for userId, isUsed := range *newUsedMembers {
+			(*existingUsedMembers)[userId] = isUsed
+		}
+
+		rs.storage.Set("chat"+strconv.FormatInt(chatId, 10), existingUsedMembers)
+
+	case *memoryStorage.MemoryStorage:
+		// Для memoryStorage просто сохраняем новые данные
+		rs.storage.Set("chat"+strconv.FormatInt(chatId, 10), newUsedMembers)
 	}
-	rs.storage.Set("chat"+strconv.FormatInt(chatId, 10), existingUsedMembers)
 }
-
 func (rs *ReviewersService) getChatUsedReviewersData(chatId int64) *usedMembersType {
 	var usedMembers usedMembersType
 	exists := rs.storage.Get("chat"+strconv.FormatInt(chatId, 10), &usedMembers)
