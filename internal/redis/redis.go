@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -58,8 +57,8 @@ func (r *RedisClient) withNamespace(key string) string {
 }
 
 // Set записывает значение
-func (r *RedisClient) Set(key string, value interface{}, expiration time.Duration) error {
-	return r.client.Set(ctx, r.withNamespace(key), value, expiration).Err()
+func (r *RedisClient) Set(key string, value interface{}) error {
+	return r.client.Set(ctx, r.withNamespace(key), value, -1).Err()
 }
 
 // Get получает значение

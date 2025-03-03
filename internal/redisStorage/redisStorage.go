@@ -2,21 +2,18 @@ package redisStorage
 
 import (
 	"encoding/json"
-	"time"
 
 	"code-review-tg-bot/internal/logger"
 	"code-review-tg-bot/internal/redis"
 )
 
 type RedisStorage struct {
-	client     *redis.RedisClient
-	expiration time.Duration
+	client *redis.RedisClient
 }
 
 func NewRedisStorage(client *redis.RedisClient) *RedisStorage {
 	return &RedisStorage{
-		client:     client,
-		expiration: 24 * time.Hour,
+		client: client,
 	}
 }
 
@@ -27,7 +24,7 @@ func (s *RedisStorage) Set(key string, value interface{}) {
 		return
 	}
 
-	err = s.client.Set(key, string(result), s.expiration)
+	err = s.client.Set(key, string(result))
 	if err != nil {
 		logger.Instance.Error("Ошибка сохранения в БД", "error", err)
 		return
