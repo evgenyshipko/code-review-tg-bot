@@ -26,7 +26,7 @@ func init() {
 
 func main() {
 	// Инициализация хранилища
-	err := storage.InitStorage()
+	storageInstance, err := storage.InitStorage()
 	if err != nil {
 		logger.Instance.Errorw("Ошибка инициализации хранилища", "error", err)
 	}
@@ -59,9 +59,11 @@ func main() {
 	u.Timeout = 60
 	updates := bot.GetUpdatesChan(u)
 
+	reviewersService := reviewers.NewReviewersService(bot, storageInstance)
+
 	// RND как работает цикл и причем тут горутины?
 	for update := range updates {
-		mainLoopFunc(update, bot)
+		mainLoopFunc(update, bot, reviewersService)
 	}
 
 }
@@ -74,7 +76,7 @@ func main() {
 //TODO: если ссылка на определденный коммит, то делать ревью только этого коммита
 //TODO: сделать чтобы бот проставлял ревьюверов в гитлабе
 
-func mainLoopFunc(update tg.Update, bot *tg.BotAPI) {
+func mainLoopFunc(update tg.Update, bot *tg.BotAPI, rs *reviewers.ReviewersService) {
 	defer func() {
 		if r := recover(); r != nil {
 			logger.Instance.Error("Паника перехвачена", "error", r)
@@ -143,8 +145,8 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI) {
 		totalRowsChanged += mergeRequestRowsChanged
 	}
 
-	reviewersCount := reviewers.GetReviewersCount(totalRowsChanged)
-	reviewersList, err := reviewers.GetReviewers(update.Message.Chat.ID, update.Message.From.ID, reviewersCount, bot.GetChatMember)
+	reviewersCount := rs.GetReviewersCount(totalRowsChanged)
+	reviewersList, err := rs.GetReviewers(update.Message.Chat.ID, update.Message.From.ID, reviewersCount, bot.GetChatMember)
 	if err != nil {
 		logger.Instance.Error(err.Error())
 		sendNewMessage("Что-то пошло не так: "+err.Error(), bot, update)

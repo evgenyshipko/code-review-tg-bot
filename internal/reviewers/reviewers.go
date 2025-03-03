@@ -18,6 +18,24 @@ type ReviewerIds map[string]int64
 
 type GetChatMemberType func(config tg.GetChatMemberConfig) (tg.ChatMember, error)
 
+type usedMembersType map[int64]bool
+
+type GetReviewerFunc func(chatId int64, authorId int64, changedRowsCount int) ([]tg.ChatMember, error)
+
+type ReviewersStorage map[int64]usedMembersType
+
+type ReviewersService struct {
+	bot     *tg.BotAPI
+	storage storage.Storage
+}
+
+func NewReviewersService(bot *tg.BotAPI, storage storage.Storage) *ReviewersService {
+	return &ReviewersService{
+		bot:     bot,
+		storage: storage,
+	}
+}
+
 // TODO: тяжелая функция, тоже можно мемоизовать, НО! с инвалидацией по времени, т.к. может изменяться список учстников
 func getChatMembers(chatId int64, getChatMember GetChatMemberType) ([]tg.ChatMember, error) {
 
@@ -60,13 +78,7 @@ func getChatMembers(chatId int64, getChatMember GetChatMemberType) ([]tg.ChatMem
 	return members, nil
 }
 
-type usedMembersType map[int64]bool
-
-type GetReviewerFunc func(chatId int64, authorId int64, changedRowsCount int) ([]tg.ChatMember, error)
-
-type ReviewersStorage map[int64]usedMembersType
-
-func GetReviewersCount(changedRows int) (reviewerCount int) {
+func (rs *ReviewersService) GetReviewersCount(changedRows int) (reviewerCount int) {
 	reviewerCount = 2
 	if changedRows < 20 {
 		reviewerCount = 1
@@ -74,35 +86,34 @@ func GetReviewersCount(changedRows int) (reviewerCount int) {
 	return reviewerCount
 }
 
-func setChatUsedReviewersData(chatId int64, newUsedMembers *usedMembersType) {
+func (rs *ReviewersService) setChatUsedReviewersData(chatId int64, newUsedMembers *usedMembersType) {
 	// Получение существующих ревьюеров
-	existingUsedMembers := getChatUsedReviewersData(chatId)
+	existingUsedMembers := rs.getChatUsedReviewersData(chatId)
 
 	// Объединение существующих и новых ревьюеров
 	for userId, isUsed := range *newUsedMembers {
 		(*existingUsedMembers)[userId] = isUsed
 	}
-	storage.GetStorage().Set("chat"+strconv.FormatInt(chatId, 10), existingUsedMembers)
+	rs.storage.Set("chat"+strconv.FormatInt(chatId, 10), existingUsedMembers)
 }
 
-func getChatUsedReviewersData(chatId int64) *usedMembersType {
+func (rs *ReviewersService) getChatUsedReviewersData(chatId int64) *usedMembersType {
 	var usedMembers usedMembersType
-	exists := storage.GetStorage().Get("chat"+strconv.FormatInt(chatId, 10), &usedMembers)
+	exists := rs.storage.Get("chat"+strconv.FormatInt(chatId, 10), &usedMembers)
 	if !exists {
 		usedMembers = usedMembersType{}
 	}
 	return &usedMembers
 }
 
-func GetReviewers(chatId int64, authorId int64, reviewerCount int, getChatMember GetChatMemberType) ([]tg.ChatMember, error) {
+func (s *ReviewersService) GetReviewers(chatId int64, authorId int64, reviewerCount int, getChatMember GetChatMemberType) ([]tg.ChatMember, error) {
 
 	chatMembers, err := getChatMembers(chatId, getChatMember)
 	if err != nil {
 		return []tg.ChatMember{}, err
 	}
-
 	// usedMembersType - те юзеры, которых не рассматриваем на ревью
-	usedMemberIds := *getChatUsedReviewersData(chatId)
+	usedMemberIds := *s.getChatUsedReviewersData(chatId)
 
 	logger.Instance.Debugw("LENGTH", "len(chatMembers)-1", len(chatMembers)-1, "len(usedMemberIds)", len(usedMemberIds), "reviewerCount", reviewerCount)
 
@@ -140,7 +151,7 @@ func GetReviewers(chatId int64, authorId int64, reviewerCount int, getChatMember
 		reviewers = append(reviewers, randomMember)
 	}
 
-	setChatUsedReviewersData(chatId, &usedMemberIds)
+	s.setChatUsedReviewersData(chatId, &usedMemberIds)
 
 	return reviewers, nil
 }
