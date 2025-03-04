@@ -2,61 +2,37 @@ package storage
 
 import (
 	"code-review-tg-bot/internal/logger"
-	"encoding/json"
-	"sync"
+	"code-review-tg-bot/internal/memoryStorage"
+	"code-review-tg-bot/internal/redis"
+	"code-review-tg-bot/internal/redisStorage"
+	"os"
 )
 
-var (
-	dataStore  = make(map[string]string)
-	storeMutex sync.Mutex
-)
+type Storage interface {
+	Set(key string, value interface{})
+	Get(key string, result interface{}) bool
+	Delete(key string)
+}
 
-func Set(key string, value interface{}) {
-	storeMutex.Lock()
-	defer storeMutex.Unlock()
+func InitStorage() (Storage, error) {
+	redisHost := os.Getenv("REDIS_HOST")
+	redisPort := os.Getenv("REDIS_PORT")
+	var err error
 
-	result, err := json.Marshal(value)
+	if redisHost == "" && redisPort == "" {
+		logger.Instance.Debug("Ошибка инициализации Redis, используется Memory")
+
+		return memoryStorage.NewMemoryStorage(), nil
+	}
+
+	err = redis.Init()
 	if err != nil {
-		logger.Instance.Error(err.Error())
-		panic(err)
+		logger.Instance.Error("Ошибка инициализации Redis", "error", err)
+		return nil, err
+
 	}
 
-	dataStore[key] = string(result)
+	logger.Instance.Info("Успешная инициализации Redis")
+	return redisStorage.NewRedisStorage(redis.GetClient()), nil
 
-	logger.Instance.Debugw("STORAGE", "dataStore", dataStore)
-}
-
-func Get(key string, result interface{}) bool {
-	storeMutex.Lock()
-	defer storeMutex.Unlock()
-	value, exists := dataStore[key]
-
-	logger.Instance.Debugw("GET RAW FROM STORAGE", "key", key, "exists", exists, "value", value)
-
-	if exists {
-		err := json.Unmarshal([]byte(value), &result)
-		if err != nil {
-			logger.Instance.Error(err.Error())
-			panic(err)
-		}
-	}
-
-	logger.Instance.Debugw("GET UNMARSHALLED FROM STORAGE", "key", key, "value", value)
-
-	return exists
-}
-
-func Delete(key string) {
-	storeMutex.Lock()
-	defer storeMutex.Unlock()
-	delete(dataStore, key)
-}
-
-func Show() {
-	storeMutex.Lock()
-	defer storeMutex.Unlock()
-	logger.Instance.Debugw("Store contents:")
-	for key, value := range dataStore {
-		logger.Instance.Debugw("%s: %s\n", key, value)
-	}
 }
