@@ -60,7 +60,7 @@ func main() {
 	u.Timeout = 60
 	updates := bot.GetUpdatesChan(u)
 
-	reviewersService := reviewers.NewReviewersService(bot, storageInstance)
+	reviewersService := reviewers.NewReviewersService(storageInstance)
 
 	// RND как работает цикл и причем тут горутины?
 	for update := range updates {

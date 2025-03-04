@@ -28,7 +28,7 @@ type ReviewersService struct {
 	storage storage.Storage
 }
 
-func NewReviewersService(bot *tg.BotAPI, storage storage.Storage) *ReviewersService {
+func NewReviewersService(storage storage.Storage) *ReviewersService {
 	return &ReviewersService{
 		storage: storage,
 	}
