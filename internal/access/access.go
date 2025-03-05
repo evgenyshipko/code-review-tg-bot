@@ -48,3 +48,32 @@ func isUserInMap(userId int64, userMap UserIds) bool {
 func GetAccessDeniedMessage(username string) string {
 	return fmt.Sprintf("@%s у вас нет доступа к этому боту", username)
 }
+
+// ParseUserIds парсит список пользователей из .env
+func ParseUserIds(envName string) (UserIds, error) {
+	var userIds UserIds
+	err := json.Unmarshal([]byte(os.Getenv(envName)), &userIds)
+
+	return userIds, err
+}
+
+// IsUserInMap проверяет, есть ли пользователь в мапе
+func IsUserInMap(userId int64, userMap UserIds) bool {
+	for _, id := range userMap {
+		if id == userId {
+			return true
+		}
+	}
+	return false
+}
+
+// Проверяет, является ли пользователь администратором
+func IsAdmin(userID int64) bool {
+	adminsIdsMap, err := ParseUserIds("ADMINS_IDS")
+	if err != nil {
+		logger.Instance.Error("Ошибка при парсинге списка администраторов", "error", err)
+		return false
+	}
+
+	return IsUserInMap(userID, adminsIdsMap)
+}

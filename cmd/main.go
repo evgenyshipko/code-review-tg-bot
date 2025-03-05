@@ -7,6 +7,7 @@ import (
 	"code-review-tg-bot/internal/reviewers"
 	"code-review-tg-bot/internal/storage"
 	"code-review-tg-bot/internal/utils"
+	"code-review-tg-bot/internal/vacation"
 	"fmt"
 	"os"
 	"strconv"
@@ -53,6 +54,11 @@ func main() {
 		panic(err)
 	}
 
+	if err := setUpBotCommands(bot); err != nil {
+		logger.Instance.Error("Ошибка настройки команд бота", "error", err)
+		os.Exit(1)
+	}
+
 	bot.Debug = true
 
 	// RND: разобраться что это за настройки и на что влияют
@@ -64,9 +70,8 @@ func main() {
 
 	// RND как работает цикл и причем тут горутины?
 	for update := range updates {
-		mainLoopFunc(update, bot, reviewersService)
+		mainLoopFunc(update, bot, reviewersService, storageInstance)
 	}
-
 }
 
 //TODO: валидация енвов при запуске
@@ -77,7 +82,7 @@ func main() {
 //TODO: если ссылка на определденный коммит, то делать ревью только этого коммита
 //TODO: сделать чтобы бот проставлял ревьюверов в гитлабе
 
-func mainLoopFunc(update tg.Update, bot *tg.BotAPI, rs *reviewers.ReviewersService) {
+func mainLoopFunc(update tg.Update, bot *tg.BotAPI, rs *reviewers.ReviewersService, storage storage.Storage) {
 	defer func() {
 		if r := recover(); r != nil {
 			logger.Instance.Error("Паника перехвачена", "error", r)
@@ -85,6 +90,31 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI, rs *reviewers.ReviewersServi
 			sendNewMessage(fmt.Sprintf("Что-то пошло не так: %s", r), bot, update)
 		}
 	}()
+
+	// Инициализируем сервис отпусков
+	vacationService := vacation.NewService(storage, bot)
+
+	// Обработка команд
+	if update.Message != nil && update.Message.IsCommand() {
+		handleCommands(update, bot, vacationService)
+		return
+	}
+
+	// Проверяем состояние админ-панели
+	if update.Message != nil {
+		var adminState vacation.AdminPanelState
+		hasState := storage.Get(fmt.Sprintf("admin_state_%d", update.Message.From.ID), &adminState)
+
+		if hasState && adminState.State != vacation.AdminStateNone {
+			vacationService.HandleAdminPanel(update, bot, adminState)
+			return
+		}
+	}
+
+	// Обработка нажатий на кнопки
+	if update.Message != nil && vacationService.HandleButtonPress(update, bot) {
+		return
+	}
 
 	// движемся дальше только если бота тегнули в сообщении
 	if update.Message == nil || !strings.Contains(update.Message.Text, bot.Self.UserName) {
@@ -96,6 +126,11 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI, rs *reviewers.ReviewersServi
 	// Проверяем доступ пользователя
 	if !access.HasAccess(update.Message.From.ID) {
 		sendNewMessage(access.GetAccessDeniedMessage(update.Message.From.UserName), bot, update)
+		return
+	}
+
+	// Проверяем текстовые команды, связанные с отпуском и тегом бота
+	if vacationService.HandleTextCommand(update, bot) {
 		return
 	}
 
@@ -193,4 +228,49 @@ func sendNewMessage(message string, bot *tg.BotAPI, update tg.Update) {
 	if err != nil {
 		logger.Instance.Error("Ошибка отправки сообщения", "Сообщение не отправлено", err.Error())
 	}
+}
+
+// Обработка команд (кнопки)
+func handleCommands(update tg.Update, bot *tg.BotAPI, vacationService *vacation.ServiceVacation) {
+	if update.Message == nil {
+		return
+	}
+
+	// Сначала запускаем команды, связанные с отпусками
+	if vacationService.HandleCommand(update, bot) {
+		return
+	}
+
+	// Базовые команды
+	switch update.Message.Command() {
+	case "start":
+		msg := tg.NewMessage(update.Message.Chat.ID, "Выберите статус:")
+		msg.ReplyMarkup = vacationService.GetDefaultKeyboard()
+
+		_, err := bot.Send(msg)
+		if err != nil {
+			logger.Instance.Error("Ошибка отправки клавиатуры", "error", err)
+		}
+	}
+}
+
+func setUpBotCommands(bot *tg.BotAPI) error {
+	// Базовые команды
+	commands := []tg.BotCommand{
+		{
+			Command:     "start",
+			Description: "Показать клавиатуру с командами",
+		},
+	}
+
+	// Добавляем команды для работы с отпусками
+	vacationService := vacation.NewService(nil, bot) // nil тк нужны только команды
+	commands = append(commands, vacationService.GetCommands()...)
+
+	_, err := bot.Request(tg.NewSetMyCommands(commands...))
+	if err != nil {
+		return fmt.Errorf("ошибка установки команд бота: %w", err)
+	}
+
+	return nil
 }
