@@ -20,7 +20,9 @@ func (s *ServiceVacation) HandleAdminPanel(update tg.Update, bot *tg.BotAPI, sta
 		s.ResetAdminState(update.Message.From.ID)
 
 		msg := tg.NewMessage(update.Message.Chat.ID, "Действие отменено")
-		msg.ReplyMarkup = s.GetDefaultKeyboard()
+		msg.ReplyMarkup = tg.NewRemoveKeyboard(true)
+		msg.ReplyToMessageID = update.Message.MessageID
+
 		bot.Send(msg)
 		return
 	}
@@ -263,7 +265,7 @@ func (s *ServiceVacation) handleStatus(update tg.Update, bot *tg.BotAPI) {
 		if !exists || !status.IsOnVacation {
 			msg := tg.NewMessage(update.Message.Chat.ID, fmt.Sprintf("@%s, Вы не находитесь в отпуске", update.Message.From.UserName))
 			msg.ReplyToMessageID = update.Message.MessageID
-			msg.ReplyMarkup = s.GetDefaultKeyboard()
+			msg.ReplyMarkup = tg.NewRemoveKeyboard(true)
 			_, err := bot.Send(msg)
 			if err != nil {
 				logger.Instance.Error("Ошибка отправки сообщения", "error", err)
@@ -281,7 +283,7 @@ func (s *ServiceVacation) handleStatus(update tg.Update, bot *tg.BotAPI) {
 
 		message := fmt.Sprintf("@%s вернулся к работе", update.Message.From.UserName)
 		msg := tg.NewMessage(update.Message.Chat.ID, message)
-		msg.ReplyMarkup = s.GetDefaultKeyboard()
+		msg.ReplyMarkup = tg.NewRemoveKeyboard(true)
 		msg.ReplyToMessageID = update.Message.MessageID
 		_, err := bot.Send(msg)
 		if err != nil {
@@ -292,8 +294,8 @@ func (s *ServiceVacation) handleStatus(update tg.Update, bot *tg.BotAPI) {
 		// Сбрасываем состояние пользователя
 		s.storage.Set(fmt.Sprintf("user_state_%d", update.Message.From.ID), UserStateNone)
 
-		msg := tg.NewMessage(update.Message.Chat.ID, "Выберите команду:")
-		msg.ReplyMarkup = s.GetDefaultKeyboard()
+		msg := tg.NewMessage(update.Message.Chat.ID, "Действие отменено")
+		msg.ReplyMarkup = tg.NewRemoveKeyboard(true)
 		msg.ReplyToMessageID = update.Message.MessageID
 		_, err := bot.Send(msg)
 		if err != nil {
@@ -329,7 +331,7 @@ func (s *ServiceVacation) handleStatus(update tg.Update, bot *tg.BotAPI) {
 
 				message := fmt.Sprintf("@%s ушёл в отпуск до %s", update.Message.From.UserName, update.Message.Text)
 				msg := tg.NewMessage(update.Message.Chat.ID, message)
-				msg.ReplyMarkup = s.GetDefaultKeyboard()
+				msg.ReplyMarkup = tg.NewRemoveKeyboard(true)
 				msg.ReplyToMessageID = update.Message.MessageID
 				_, err := bot.Send(msg)
 
@@ -478,7 +480,7 @@ func (s *ServiceVacation) handleAdminActionsForUser(update tg.Update, bot *tg.Bo
 		if !exists || !status.IsOnVacation {
 			msg := tg.NewMessage(update.Message.Chat.ID, "Пользователь не находится в отпуске")
 			msg.ReplyToMessageID = update.Message.MessageID
-			msg.ReplyMarkup = s.GetDefaultKeyboard()
+			msg.ReplyMarkup = tg.NewRemoveKeyboard(true)
 			bot.Send(msg)
 			return
 		}
@@ -526,7 +528,7 @@ func (s *ServiceVacation) handleAdminActionsForUser(update tg.Update, bot *tg.Bo
 			username)
 		msg := tg.NewMessage(update.Message.Chat.ID, message)
 		msg.ParseMode = tg.ModeHTML
-		msg.ReplyMarkup = s.GetDefaultKeyboard()
+		msg.ReplyMarkup = tg.NewRemoveKeyboard(true)
 		msg.ReplyToMessageID = update.Message.MessageID
 
 		// Сбрасываем состояние админ-панели
@@ -597,7 +599,7 @@ func (s *ServiceVacation) handleAdminSetVacation(update tg.Update, bot *tg.BotAP
 			update.Message.Text)
 		msg := tg.NewMessage(update.Message.Chat.ID, message)
 		msg.ParseMode = tg.ModeHTML
-		msg.ReplyMarkup = s.GetDefaultKeyboard()
+		msg.ReplyMarkup = tg.NewRemoveKeyboard(true)
 		msg.ReplyToMessageID = update.Message.MessageID
 
 		// Сбрасываем состояние админ-панели
