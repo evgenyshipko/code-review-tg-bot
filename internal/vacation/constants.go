@@ -15,6 +15,12 @@ const (
 	AdminStateSetVacation = "set_vacation" // установка отпуска
 )
 
+// Константы состояний пользователя
+const (
+	UserStateNone          = ""            // начальное состояние
+	UserStateSelectingDate = "select_date" // выбор даты отпуска
+)
+
 // Константы для форматирования даты
 const (
 	DateFormatLayout = "02.01.2006"

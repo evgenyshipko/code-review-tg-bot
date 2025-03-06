@@ -67,10 +67,11 @@ func main() {
 	updates := bot.GetUpdatesChan(u)
 
 	reviewersService := reviewers.NewReviewersService(storageInstance)
+	vacationService := vacation.NewService(storageInstance, bot)
 
 	// RND как работает цикл и причем тут горутины?
 	for update := range updates {
-		mainLoopFunc(update, bot, reviewersService, storageInstance)
+		mainLoopFunc(update, bot, reviewersService, vacationService, storageInstance)
 	}
 }
 
@@ -81,8 +82,9 @@ func main() {
 //TODO: кеширование ручек/истории ревью во внешнем источнике (редис)
 //TODO: если ссылка на определденный коммит, то делать ревью только этого коммита
 //TODO: сделать чтобы бот проставлял ревьюверов в гитлабе
+//TODO: предусмотреть возможность передачи множества сервисов в mainLoopFunc
 
-func mainLoopFunc(update tg.Update, bot *tg.BotAPI, rs *reviewers.ReviewersService, storage storage.Storage) {
+func mainLoopFunc(update tg.Update, bot *tg.BotAPI, rs *reviewers.ReviewersService, vs *vacation.ServiceVacation, storage storage.Storage) {
 	defer func() {
 		if r := recover(); r != nil {
 			logger.Instance.Error("Паника перехвачена", "error", r)
@@ -91,12 +93,9 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI, rs *reviewers.ReviewersServi
 		}
 	}()
 
-	// Инициализируем сервис отпусков
-	vacationService := vacation.NewService(storage, bot)
-
 	// Обработка команд
 	if update.Message != nil && update.Message.IsCommand() {
-		handleCommands(update, bot, vacationService)
+		handleCommands(update, bot, vs)
 		return
 	}
 
@@ -106,13 +105,13 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI, rs *reviewers.ReviewersServi
 		hasState := storage.Get(fmt.Sprintf("admin_state_%d", update.Message.From.ID), &adminState)
 
 		if hasState && adminState.State != vacation.AdminStateNone {
-			vacationService.HandleAdminPanel(update, bot, adminState)
+			vs.HandleAdminPanel(update, bot, adminState)
 			return
 		}
 	}
 
 	// Обработка нажатий на кнопки
-	if update.Message != nil && vacationService.HandleButtonPress(update, bot) {
+	if update.Message != nil && vs.HandleButtonPress(update, bot) {
 		return
 	}
 
@@ -130,7 +129,7 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI, rs *reviewers.ReviewersServi
 	}
 
 	// Проверяем текстовые команды, связанные с отпуском и тегом бота
-	if vacationService.HandleTextCommand(update, bot) {
+	if vs.HandleTextCommand(update, bot) {
 		return
 	}
 
@@ -244,8 +243,9 @@ func handleCommands(update tg.Update, bot *tg.BotAPI, vacationService *vacation.
 	// Базовые команды
 	switch update.Message.Command() {
 	case "start":
-		msg := tg.NewMessage(update.Message.Chat.ID, "Выберите статус:")
+		msg := tg.NewMessage(update.Message.Chat.ID, "Выберите команду:")
 		msg.ReplyMarkup = vacationService.GetDefaultKeyboard()
+		msg.ReplyToMessageID = update.Message.MessageID
 
 		_, err := bot.Send(msg)
 		if err != nil {
