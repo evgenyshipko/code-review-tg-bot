@@ -66,8 +66,8 @@ func main() {
 	u.Timeout = 60
 	updates := bot.GetUpdatesChan(u)
 
-	reviewersService := reviewers.NewReviewersService(storageInstance)
 	vacationService := vacation.NewService(storageInstance, bot)
+	reviewersService := reviewers.NewReviewersService(storageInstance, vacationService)
 
 	// RND как работает цикл и причем тут горутины?
 	for update := range updates {
@@ -132,6 +132,9 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI, rs *reviewers.ReviewersServi
 	if vs.HandleTextCommand(update, bot) {
 		return
 	}
+
+	// Сбрасываем все состояния пользователя при обработке мердж реквеста
+	vs.ResetAllStates(update.Message.From.ID)
 
 	//RND: разобраться - что за параметр -1
 	urls := xurls.Strict.FindAllString(update.Message.Text, -1)

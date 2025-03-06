@@ -12,9 +12,12 @@ import (
 
 // Обрабатывает действия в админ-панели
 func (s *ServiceVacation) HandleAdminPanel(update tg.Update, bot *tg.BotAPI, state AdminPanelState) {
+	// Сбрасываем состояние пользователя при работе с админ-панелью
+	s.ResetAllStates(update.Message.From.ID)
+
 	if update.Message.Text == ButtonCancel {
 		// Сбрасываем состояние админ-панели
-		s.storage.Set(fmt.Sprintf("admin_state_%d", update.Message.From.ID), AdminPanelState{State: AdminStateNone})
+		s.ResetAdminState(update.Message.From.ID)
 
 		msg := tg.NewMessage(update.Message.Chat.ID, "Действие отменено")
 		msg.ReplyMarkup = s.GetDefaultKeyboard()
@@ -92,6 +95,9 @@ func (s *ServiceVacation) GetDefaultKeyboard() tg.ReplyKeyboardMarkup {
 
 // Обрабатывает текстовые команды, связанные с отпуском
 func (s *ServiceVacation) HandleTextCommand(update tg.Update, bot *tg.BotAPI) bool {
+	// Сбрасываем состояние админ-панели при работе с обычными командами
+	s.ResetAdminState(update.Message.From.ID)
+
 	var commandMap = map[string]string{
 		"отпуск": ButtonTakeVacation,
 		"работа": ButtonReturnToWork,
@@ -104,7 +110,7 @@ func (s *ServiceVacation) HandleTextCommand(update tg.Update, bot *tg.BotAPI) bo
 			if action == ButtonTakeVacation {
 				s.storage.Set(fmt.Sprintf("user_state_%d", update.Message.From.ID), UserStateSelectingDate)
 			} else {
-				s.storage.Set(fmt.Sprintf("user_state_%d", update.Message.From.ID), UserStateNone)
+				s.ResetAllStates(update.Message.From.ID)
 			}
 
 			s.handleStatus(tg.Update{
@@ -152,8 +158,12 @@ func (s *ServiceVacation) HandleCommand(update tg.Update, bot *tg.BotAPI) bool {
 
 	switch update.Message.Command() {
 	case "admin":
+		// Сбрасываем состояние пользователя при входе в админ-панель
+		s.ResetAllStates(update.Message.From.ID)
 		return s.handleAdminCommand(update, bot)
 	case "rest":
+		// Сбрасываем состояние админ-панели
+		s.ResetAdminState(update.Message.From.ID)
 		// Устанавливаем состояние выбора даты
 		s.storage.Set(fmt.Sprintf("user_state_%d", update.Message.From.ID), UserStateSelectingDate)
 		s.handleStatus(tg.Update{
@@ -166,8 +176,8 @@ func (s *ServiceVacation) HandleCommand(update tg.Update, bot *tg.BotAPI) bool {
 		}, bot)
 		return true
 	case "work":
-		// Сбрасываем состояние пользователя
-		s.storage.Set(fmt.Sprintf("user_state_%d", update.Message.From.ID), UserStateNone)
+		// Сбрасываем все состояния
+		s.ResetAllStates(update.Message.From.ID)
 		s.handleStatus(tg.Update{
 			Message: &tg.Message{
 				Text:      ButtonReturnToWork,
@@ -184,7 +194,7 @@ func (s *ServiceVacation) HandleCommand(update tg.Update, bot *tg.BotAPI) bool {
 	return false
 }
 
-// Обрабатывает нажатия на кнопки, возвращает true, если обработка прошла успешно
+// Обрабатывает нажатия на кнопки
 func (s *ServiceVacation) HandleButtonPress(update tg.Update, bot *tg.BotAPI) bool {
 	if update.Message == nil {
 		return false
@@ -195,12 +205,26 @@ func (s *ServiceVacation) HandleButtonPress(update tg.Update, bot *tg.BotAPI) bo
 	s.storage.Get(fmt.Sprintf("user_state_%d", update.Message.From.ID), &userState)
 
 	switch update.Message.Text {
-	case ButtonTakeVacation, ButtonReturnToWork, ButtonCancel:
+	case ButtonTakeVacation:
+		// Сбрасываем состояние админ-панели
+		s.ResetAdminState(update.Message.From.ID)
+		s.handleStatus(update, bot)
+		return true
+	case ButtonReturnToWork:
+		// Сбрасываем все состояния
+		s.ResetAllStates(update.Message.From.ID)
+		s.handleStatus(update, bot)
+		return true
+	case ButtonCancel:
+		// Сбрасываем все состояния
+		s.ResetAllStates(update.Message.From.ID)
 		s.handleStatus(update, bot)
 		return true
 	default:
 		// Проверяем, является ли сообщение датой после выбора даты в клавиатуре
 		if userState == UserStateSelectingDate && s.isDateFormat(update.Message.Text) {
+			// Сбрасываем состояние админ-панели
+			s.ResetAdminState(update.Message.From.ID)
 			s.handleStatus(update, bot)
 			return true
 		}
