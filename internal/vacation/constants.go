@@ -4,7 +4,7 @@ package vacation
 const (
 	ButtonTakeVacation   = "🏃 Оформить отпуск"
 	ButtonReturnToWork   = "💼 Выход на работу"
-	ButtonCancel         = "❌ Отменить"
+	ButtonCancel         = "❌ Закрыть"
 	ButtonChangeVacation = "📅 Изменить отпуск"
 )
 

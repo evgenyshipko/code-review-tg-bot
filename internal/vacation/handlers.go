@@ -297,11 +297,12 @@ func (s *ServiceVacation) HandleButtonPress(update tg.Update, bot *tg.BotAPI) bo
 			msg.ReplyToMessageID = update.Message.MessageID
 			bot.Send(msg)
 
-			// Обновляем список отпусков
 			s.handleVacationsCommand(update, bot)
+
+			return true
 		}
 
-		return true
+		return false
 	}
 
 	switch update.Message.Text {
@@ -493,7 +494,7 @@ func (s *ServiceVacation) handleAdminCommand(update tg.Update, bot *tg.BotAPI) b
 		return true
 	}
 
-	keyboard := s.createUsersKeyboard(allUsers)
+	keyboard := s.createUsersKeyboard(allUsers, update.Message.Chat.ID)
 	msg := tg.NewMessage(update.Message.Chat.ID, "Выберите пользователя:")
 	msg.ReplyMarkup = keyboard
 	msg.ReplyToMessageID = update.Message.MessageID
@@ -515,9 +516,9 @@ func (s *ServiceVacation) handleAdminCommand(update tg.Update, bot *tg.BotAPI) b
 // Обрабатывает выбор пользователя
 func (s *ServiceVacation) handleAdminPickUser(update tg.Update, bot *tg.BotAPI, state AdminPanelState) {
 	if strings.HasPrefix(update.Message.Text, "👤 ") {
-		username := strings.TrimPrefix(update.Message.Text, "👤 ")
+		selectedFullName := strings.TrimPrefix(update.Message.Text, "👤 ")
 
-		// Получаем ID пользователя по имени
+		// Получаем ID пользователя по полному имени
 		allUsers, err := access.ParseUserIds("REVIEW_PARTICIPANTS_IDS")
 		if err != nil {
 			logger.Instance.Error("Ошибка при парсинге списка пользователей", "error", err)
@@ -526,8 +527,19 @@ func (s *ServiceVacation) handleAdminPickUser(update tg.Update, bot *tg.BotAPI, 
 
 		// Получаем ID выбранного пользователя
 		var selectedUserId int64
-		for uname, uid := range allUsers {
-			if uname == username {
+		for _, uid := range allUsers {
+			member, err := s.bot.GetChatMember(tg.GetChatMemberConfig{
+				ChatConfigWithUser: tg.ChatConfigWithUser{
+					ChatID: update.Message.Chat.ID,
+					UserID: uid,
+				},
+			})
+			if err != nil {
+				continue
+			}
+
+			fullName := strings.TrimSpace(member.User.FirstName + " " + member.User.LastName)
+			if fullName == selectedFullName {
 				selectedUserId = uid
 				break
 			}
@@ -543,7 +555,7 @@ func (s *ServiceVacation) handleAdminPickUser(update tg.Update, bot *tg.BotAPI, 
 		// Создаем клавиатуру с действиями
 		keyboard := s.createAdminActionsKeyboard(selectedUserId)
 
-		msg := tg.NewMessage(update.Message.Chat.ID, fmt.Sprintf("Выберите действие для пользователя %s:", username))
+		msg := tg.NewMessage(update.Message.Chat.ID, fmt.Sprintf("Выберите действие для пользователя %s:", selectedFullName))
 		msg.ReplyMarkup = keyboard
 		msg.ReplyToMessageID = update.Message.MessageID
 
@@ -712,11 +724,25 @@ func (s *ServiceVacation) handleAdminSetVacation(update tg.Update, bot *tg.BotAP
 }
 
 // createUsersKeyboard создает клавиатуру со списком пользователей
-func (s *ServiceVacation) createUsersKeyboard(users map[string]int64) tg.ReplyKeyboardMarkup {
+func (s *ServiceVacation) createUsersKeyboard(users map[string]int64, chatID int64) tg.ReplyKeyboardMarkup {
 	var rows [][]tg.KeyboardButton
-	for username := range users {
+
+	for _, userId := range users {
+		member, err := s.bot.GetChatMember(tg.GetChatMemberConfig{
+			ChatConfigWithUser: tg.ChatConfigWithUser{
+				ChatID: chatID,
+				UserID: userId,
+			},
+		})
+
+		if err != nil {
+			logger.Instance.Error("Ошибка при получении информации о пользователе", "error", err)
+			continue
+		}
+
+		fullName := strings.TrimSpace(member.User.FirstName + " " + member.User.LastName)
 		rows = append(rows, []tg.KeyboardButton{
-			tg.NewKeyboardButton(fmt.Sprintf("👤 %s", username)),
+			tg.NewKeyboardButton(fmt.Sprintf("👤 %s", fullName)),
 		})
 	}
 
