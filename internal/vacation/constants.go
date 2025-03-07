@@ -2,12 +2,13 @@ package vacation
 
 // Константы для текста кнопок
 const (
-	ButtonTakeVacation   = "🏃 Оформить отпуск"
-	ButtonReturnToWork   = "💼 Выход на работу"
-	ButtonCancel         = "❌ Закрыть"
-	ButtonChangeVacation = "📅 Изменить отпуск"
-	ButtonVacationsList  = "📋 Список отпусков"
-	ButtonVacationsLeave = "➕ Отправить в отпуск"
+	ButtonTakeVacation       = "🏃 Оформить отпуск"
+	ButtonReturnFromVacation = "🔄 Вернуть из отпуска:"
+	ButtonChangeVacation     = "📅 Изменить отпуск:"
+	ButtonReturnToWork       = "💼 Выход на работу"
+	ButtonCancel             = "❌ Закрыть"
+	ButtonVacationsList      = "📋 Список отпусков"
+	ButtonVacationsLeave     = "➕ Отправить в отпуск"
 )
 
 // Константы состояний админ-панели

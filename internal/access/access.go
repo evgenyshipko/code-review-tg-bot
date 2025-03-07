@@ -77,3 +77,28 @@ func IsAdmin(userID int64) bool {
 
 	return IsUserInMap(userID, adminsIdsMap)
 }
+
+// Проверяет, является ли пользователь ревьюером
+func IsReviewer(userId int64) bool {
+	reviewers, err := ParseUserIds("REVIEW_PARTICIPANTS_IDS")
+	if err != nil {
+		return false
+	}
+
+	for _, id := range reviewers {
+		if id == userId {
+			return true
+		}
+	}
+	return false
+}
+
+// Проверяет, имеет ли пользователь доступ к функциям отпуска
+func HasVacationAccess(userId int64) bool {
+	return IsReviewer(userId)
+}
+
+// Проверяет, имеет ли пользователь доступ к админ-функциям
+func HasAdminAccess(userId int64) bool {
+	return IsAdmin(userId)
+}
