@@ -26,3 +26,8 @@ const (
 const (
 	DateFormatLayout = "02.01.2006"
 )
+
+// Константы для сообщений
+const (
+	MsgKeyboardClosed = "Клавиатура закрыта"
+)

@@ -19,7 +19,7 @@ func (s *ServiceVacation) HandleAdminPanel(update tg.Update, bot *tg.BotAPI, sta
 		// Сбрасываем состояние админ-панели
 		s.ResetAdminState(update.Message.From.ID)
 
-		msg := tg.NewMessage(update.Message.Chat.ID, "Действие отменено")
+		msg := tg.NewMessage(update.Message.Chat.ID, MsgKeyboardClosed)
 		msg.ReplyMarkup = tg.NewRemoveKeyboard(true)
 		msg.ReplyToMessageID = update.Message.MessageID
 
@@ -66,8 +66,7 @@ func (s *ServiceVacation) GetVacationsList(update tg.Update) (string, error) {
 		exists := s.storage.Get(fmt.Sprintf("vacation_%d", userId), &status)
 
 		if exists && status.IsOnVacation {
-			message += fmt.Sprintf("<a href=\"tg://user?id=%d\">%s</a> - до %s\n",
-				userId,
+			message += fmt.Sprintf("%s - до %s\n",
 				member.User.FirstName+" "+member.User.LastName,
 				status.ReturnDate.Format(DateFormatLayout))
 			hasVacations = true
@@ -393,7 +392,7 @@ func (s *ServiceVacation) handleStatus(update tg.Update, bot *tg.BotAPI) {
 		// Сбрасываем состояние пользователя
 		s.storage.Set(fmt.Sprintf("user_state_%d", update.Message.From.ID), UserStateNone)
 
-		msg := tg.NewMessage(update.Message.Chat.ID, "Действие отменено")
+		msg := tg.NewMessage(update.Message.Chat.ID, MsgKeyboardClosed)
 		msg.ReplyMarkup = tg.NewRemoveKeyboard(true)
 		msg.ReplyToMessageID = update.Message.MessageID
 		_, err := bot.Send(msg)
@@ -464,13 +463,13 @@ func (s *ServiceVacation) handleVacationsCommand(update tg.Update, bot *tg.BotAP
 	}
 
 	msg := tg.NewMessage(update.Message.Chat.ID, message)
-	msg.ParseMode = tg.ModeHTML
 
 	if len(buttons) > 0 {
 		keyboard := tg.NewReplyKeyboard(buttons...)
 		keyboard.OneTimeKeyboard = true
 		keyboard.Selective = true
 		msg.ReplyMarkup = keyboard
+		msg.ReplyToMessageID = update.Message.MessageID
 	}
 
 	bot.Send(msg)
@@ -657,70 +656,75 @@ func (s *ServiceVacation) handleAdminSetVacation(update tg.Update, bot *tg.BotAP
 	// Проверка, является ли сообщение датой
 	returnDate, err := time.Parse(DateFormatLayout, update.Message.Text)
 
-	if err == nil {
-		// Проверяем валидность даты
-		if !s.isValidVacationDate(returnDate) {
-			msg := tg.NewMessage(update.Message.Chat.ID, "Дата выхода на работу должна быть не раньше завтрашнего дня и не позже чем через 3 недели")
-			msg.ReplyToMessageID = update.Message.MessageID
-			bot.Send(msg)
-			return
-		}
-
-		// Получаем список пользователей для поиска имени
-		allUsers, err := access.ParseUserIds("REVIEW_PARTICIPANTS_IDS")
-		if err != nil {
-			logger.Instance.Error("Ошибка при парсинге списка пользователей", "error", err)
-			return
-		}
-
-		// Поиск имени пользователя
-		var username string
-		for _, uid := range allUsers {
-			if uid == state.SelectedUID {
-				member, err := s.bot.GetChatMember(tg.GetChatMemberConfig{
-					ChatConfigWithUser: tg.ChatConfigWithUser{
-						ChatID: update.Message.Chat.ID,
-						UserID: state.SelectedUID,
-					},
-				})
-
-				if err != nil {
-					logger.Instance.Error("Ошибка при получении информации о пользователе", "error", err)
-					return
-				}
-
-				username = member.User.FirstName + " " + member.User.LastName
-
-				break
-			}
-		}
-
-		if username == "" {
-			logger.Instance.Error("Не удалось найти пользователя", "user_id", state.SelectedUID)
-			return
-		}
-
-		// Сохраняем отпуск пользователя в бд
-		status := StatusVacationUser{
-			IsOnVacation: true,
-			ReturnDate:   returnDate,
-		}
-		s.storage.Set(fmt.Sprintf("vacation_%d", state.SelectedUID), status)
-
-		message := fmt.Sprintf("Пользователь <a href=\"tg://user?id=%d\">%s</a> добавлен в отпуск до %s",
-			state.SelectedUID,
-			username,
-			update.Message.Text)
-		msg := tg.NewMessage(update.Message.Chat.ID, message)
-		msg.ParseMode = tg.ModeHTML
-		msg.ReplyMarkup = tg.NewRemoveKeyboard(true)
+	if err != nil {
+		msg := tg.NewMessage(update.Message.Chat.ID, "Дата выхода на работу должна быть в формате ДД.ММ.ГГГГ")
 		msg.ReplyToMessageID = update.Message.MessageID
-
-		// Сбрасываем состояние админ-панели
-		s.storage.Set(fmt.Sprintf("admin_state_%d", update.Message.From.ID), AdminPanelState{State: AdminStateNone})
-
 		bot.Send(msg)
+		return
 	}
+
+	// Проверяем валидность даты
+	if !s.isValidVacationDate(returnDate) {
+		msg := tg.NewMessage(update.Message.Chat.ID, "Дата выхода на работу должна быть не раньше завтрашнего дня и не позже чем через 3 недели")
+		msg.ReplyToMessageID = update.Message.MessageID
+		bot.Send(msg)
+		return
+	}
+
+	// Получаем список пользователей для поиска имени
+	allUsers, err := access.ParseUserIds("REVIEW_PARTICIPANTS_IDS")
+	if err != nil {
+		logger.Instance.Error("Ошибка при парсинге списка пользователей", "error", err)
+		return
+	}
+
+	// Поиск имени пользователя
+	var username string
+	for _, uid := range allUsers {
+		if uid == state.SelectedUID {
+			member, err := s.bot.GetChatMember(tg.GetChatMemberConfig{
+				ChatConfigWithUser: tg.ChatConfigWithUser{
+					ChatID: update.Message.Chat.ID,
+					UserID: state.SelectedUID,
+				},
+			})
+
+			if err != nil {
+				logger.Instance.Error("Ошибка при получении информации о пользователе", "error", err)
+				return
+			}
+
+			username = member.User.FirstName + " " + member.User.LastName
+
+			break
+		}
+	}
+
+	if username == "" {
+		logger.Instance.Error("Не удалось найти пользователя", "user_id", state.SelectedUID)
+		return
+	}
+
+	// Сохраняем отпуск пользователя в бд
+	status := StatusVacationUser{
+		IsOnVacation: true,
+		ReturnDate:   returnDate,
+	}
+	s.storage.Set(fmt.Sprintf("vacation_%d", state.SelectedUID), status)
+
+	message := fmt.Sprintf("Пользователь <a href=\"tg://user?id=%d\">%s</a> добавлен в отпуск до %s",
+		state.SelectedUID,
+		username,
+		update.Message.Text)
+	msg := tg.NewMessage(update.Message.Chat.ID, message)
+	msg.ParseMode = tg.ModeHTML
+	msg.ReplyMarkup = tg.NewRemoveKeyboard(true)
+	msg.ReplyToMessageID = update.Message.MessageID
+
+	// Сбрасываем состояние админ-панели
+	s.storage.Set(fmt.Sprintf("admin_state_%d", update.Message.From.ID), AdminPanelState{State: AdminStateNone})
+
+	bot.Send(msg)
 }
 
 // createUsersKeyboard создает клавиатуру со списком пользователей
