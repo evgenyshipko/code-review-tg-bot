@@ -247,7 +247,7 @@ func handleCommands(update tg.Update, bot *tg.BotAPI, vacationService *vacation.
 	switch update.Message.Command() {
 	case "start":
 		msg := tg.NewMessage(update.Message.Chat.ID, "Выберите команду:")
-		msg.ReplyMarkup = vacationService.GetDefaultKeyboard()
+		msg.ReplyMarkup = vacationService.GetDefaultKeyboard(update.Message.From.ID)
 		msg.ReplyToMessageID = update.Message.MessageID
 
 		_, err := bot.Send(msg)

@@ -82,10 +82,19 @@ func (s *ServiceVacation) GetVacationsList(update tg.Update) (string, error) {
 }
 
 // Возвращает клавиатуру по умолчанию
-func (s *ServiceVacation) GetDefaultKeyboard() tg.ReplyKeyboardMarkup {
-	var defaultButtons = []tg.KeyboardButton{
-		tg.NewKeyboardButton(ButtonTakeVacation),
-		tg.NewKeyboardButton(ButtonReturnToWork),
+func (s *ServiceVacation) GetDefaultKeyboard(userId int64) tg.ReplyKeyboardMarkup {
+	var defaultButtons []tg.KeyboardButton
+
+	// Проверяем статус отпуска пользователя
+	var status StatusVacationUser
+	exists := s.storage.Get(fmt.Sprintf("vacation_%d", userId), &status)
+
+	if exists && status.IsOnVacation {
+		// Если пользователь в отпуске, показываем только кнопку возврата
+		defaultButtons = append(defaultButtons, tg.NewKeyboardButton(ButtonReturnToWork))
+	} else {
+		// Если не в отпуске, показываем только кнопку ухода в отпуск
+		defaultButtons = append(defaultButtons, tg.NewKeyboardButton(ButtonTakeVacation))
 	}
 
 	keyboard := tg.NewReplyKeyboard(
@@ -110,6 +119,17 @@ func (s *ServiceVacation) HandleTextCommand(update tg.Update, bot *tg.BotAPI) bo
 		if strings.Contains(text, keyword) {
 			// Устанавливаем соответствующее состояние
 			if action == ButtonTakeVacation {
+				// Проверяем, не находится ли пользователь уже в отпуске
+				var status StatusVacationUser
+				exists := s.storage.Get(fmt.Sprintf("vacation_%d", update.Message.From.ID), &status)
+				if exists && status.IsOnVacation {
+					msg := tg.NewMessage(update.Message.Chat.ID, fmt.Sprintf("@%s, Вы уже находитесь в отпуске до %s",
+						update.Message.From.UserName,
+						status.ReturnDate.Format(DateFormatLayout)))
+					msg.ReplyToMessageID = update.Message.MessageID
+					bot.Send(msg)
+					return true
+				}
 				s.storage.Set(fmt.Sprintf("user_state_%d", update.Message.From.ID), UserStateSelectingDate)
 			} else {
 				s.ResetAllStates(update.Message.From.ID)
@@ -166,6 +186,19 @@ func (s *ServiceVacation) HandleCommand(update tg.Update, bot *tg.BotAPI) bool {
 	case "rest":
 		// Сбрасываем состояние админ-панели
 		s.ResetAdminState(update.Message.From.ID)
+
+		// Проверяем, не находится ли пользователь уже в отпуске
+		var status StatusVacationUser
+		exists := s.storage.Get(fmt.Sprintf("vacation_%d", update.Message.From.ID), &status)
+		if exists && status.IsOnVacation {
+			msg := tg.NewMessage(update.Message.Chat.ID, fmt.Sprintf("@%s, Вы уже находитесь в отпуске до %s",
+				update.Message.From.UserName,
+				status.ReturnDate.Format(DateFormatLayout)))
+			msg.ReplyToMessageID = update.Message.MessageID
+			bot.Send(msg)
+			return true
+		}
+
 		// Устанавливаем состояние выбора даты
 		s.storage.Set(fmt.Sprintf("user_state_%d", update.Message.From.ID), UserStateSelectingDate)
 		s.handleStatus(tg.Update{
@@ -207,7 +240,7 @@ func (s *ServiceVacation) HandleButtonPress(update tg.Update, bot *tg.BotAPI) bo
 	s.storage.Get(fmt.Sprintf("user_state_%d", update.Message.From.ID), &userState)
 
 	switch update.Message.Text {
-	case ButtonTakeVacation:
+	case ButtonTakeVacation, ButtonChangeVacation:
 		// Сбрасываем состояние админ-панели
 		s.ResetAdminState(update.Message.From.ID)
 		s.handleStatus(update, bot)
@@ -240,7 +273,7 @@ func (s *ServiceVacation) HandleButtonPress(update tg.Update, bot *tg.BotAPI) bo
 // Обрабатывает изменение статуса отпуска
 func (s *ServiceVacation) handleStatus(update tg.Update, bot *tg.BotAPI) {
 	switch update.Message.Text {
-	case ButtonTakeVacation:
+	case ButtonTakeVacation, ButtonChangeVacation:
 		// Показываем календарь на клавиатуре
 		dates := s.generateVacationDates()
 		keyboard := s.createDateKeyboard(dates)
@@ -429,17 +462,7 @@ func (s *ServiceVacation) handleAdminPickUser(update tg.Update, bot *tg.BotAPI, 
 		}
 
 		// Создаем клавиатуру с действиями
-		keyboard := tg.NewReplyKeyboard(
-			tg.NewKeyboardButtonRow(
-				tg.NewKeyboardButton("📅 Добавить в отпуск"),
-				tg.NewKeyboardButton("💼 Вернуть на работу"),
-			),
-			tg.NewKeyboardButtonRow(
-				tg.NewKeyboardButton(ButtonCancel),
-			),
-		)
-		keyboard.OneTimeKeyboard = true
-		keyboard.Selective = true
+		keyboard := s.createAdminActionsKeyboard(selectedUserId)
 
 		msg := tg.NewMessage(update.Message.Chat.ID, fmt.Sprintf("Выберите действие для пользователя %s:", username))
 		msg.ReplyMarkup = keyboard
@@ -457,7 +480,7 @@ func (s *ServiceVacation) handleAdminPickUser(update tg.Update, bot *tg.BotAPI, 
 // Обрабатывает действия в админ-панели
 func (s *ServiceVacation) handleAdminActionsForUser(update tg.Update, bot *tg.BotAPI, state AdminPanelState) {
 	switch update.Message.Text {
-	case "📅 Добавить в отпуск":
+	case ButtonTakeVacation, ButtonChangeVacation:
 		// Показываем календарь
 		dates := s.generateVacationDates()
 		keyboard := s.createDateKeyboard(dates)
@@ -472,7 +495,7 @@ func (s *ServiceVacation) handleAdminActionsForUser(update tg.Update, bot *tg.Bo
 
 		bot.Send(msg)
 
-	case "💼 Вернуть на работу":
+	case ButtonReturnToWork:
 		// Проверяем, находится ли пользователь в отпуске
 		var status StatusVacationUser
 		exists := s.storage.Get(fmt.Sprintf("vacation_%d", state.SelectedUID), &status)
@@ -684,4 +707,31 @@ func (s *ServiceVacation) isValidVacationDate(date time.Time) bool {
 	maxDate = time.Date(maxDate.Year(), maxDate.Month(), maxDate.Day(), 0, 0, 0, 0, maxDate.Location())
 
 	return !date.Before(tomorrow) && !date.After(maxDate)
+}
+
+// Создает клавиатуру с действиями для выбранного пользователя
+func (s *ServiceVacation) createAdminActionsKeyboard(userId int64) tg.ReplyKeyboardMarkup {
+	var buttons [][]tg.KeyboardButton
+	var actionButtons []tg.KeyboardButton
+
+	// Проверяем статус отпуска пользователя
+	var status StatusVacationUser
+	exists := s.storage.Get(fmt.Sprintf("vacation_%d", userId), &status)
+
+	if exists && status.IsOnVacation {
+		// Если пользователь в отпуске, показываем только кнопку возврата
+		actionButtons = append(actionButtons, tg.NewKeyboardButton(ButtonChangeVacation), tg.NewKeyboardButton(ButtonReturnToWork))
+	} else {
+		// Если не в отпуске, показываем только кнопку добавления в отпуск
+		actionButtons = append(actionButtons, tg.NewKeyboardButton(ButtonTakeVacation))
+	}
+
+	buttons = append(buttons, actionButtons)
+	buttons = append(buttons, []tg.KeyboardButton{tg.NewKeyboardButton(ButtonCancel)})
+
+	keyboard := tg.NewReplyKeyboard(buttons...)
+	keyboard.OneTimeKeyboard = true
+	keyboard.Selective = true
+
+	return keyboard
 }
