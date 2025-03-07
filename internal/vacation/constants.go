@@ -6,6 +6,8 @@ const (
 	ButtonReturnToWork   = "💼 Выход на работу"
 	ButtonCancel         = "❌ Закрыть"
 	ButtonChangeVacation = "📅 Изменить отпуск"
+	ButtonVacationsList  = "📋 Список отпусков"
+	ButtonVacationsLeave = "➕ Отправить в отпуск"
 )
 
 // Константы состояний админ-панели
