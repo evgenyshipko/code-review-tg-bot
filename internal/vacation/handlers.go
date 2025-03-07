@@ -239,6 +239,71 @@ func (s *ServiceVacation) HandleButtonPress(update tg.Update, bot *tg.BotAPI) bo
 	var userState string
 	s.storage.Get(fmt.Sprintf("user_state_%d", update.Message.From.ID), &userState)
 
+	// Проверяем, является ли это кнопкой возврата из отпуска из списка отпусков
+	if strings.HasPrefix(update.Message.Text, "🔄 Вернуть ") {
+		if !access.IsAdmin(update.Message.From.ID) {
+			return false
+		}
+
+		// Извлекаем имя и фамилию пользователя из текста кнопки
+		userName := strings.TrimPrefix(update.Message.Text, "🔄 Вернуть ")
+
+		// Получаем всех пользователей
+		allUsers, err := access.ParseUserIds("REVIEW_PARTICIPANTS_IDS")
+		if err != nil {
+			logger.Instance.Error("Ошибка при парсинге списка пользователей", "error", err)
+			return true
+		}
+
+		// Ищем пользователя по имени среди тех, кто в отпуске
+		var foundUserId int64
+		for _, userId := range allUsers {
+			var status StatusVacationUser
+			exists := s.storage.Get(fmt.Sprintf("vacation_%d", userId), &status)
+
+			if exists && status.IsOnVacation {
+				member, err := s.bot.GetChatMember(tg.GetChatMemberConfig{
+					ChatConfigWithUser: tg.ChatConfigWithUser{
+						ChatID: update.Message.Chat.ID,
+						UserID: userId,
+					},
+				})
+				if err != nil {
+					continue
+				}
+				fullName := strings.TrimSpace(member.User.FirstName + " " + member.User.LastName)
+				userName = strings.TrimSpace(userName)
+
+				if fullName == userName {
+					foundUserId = userId
+					break
+				}
+			}
+		}
+
+		if foundUserId != 0 {
+			// Устанавливаем статус "не в отпуске"
+			status := StatusVacationUser{
+				IsOnVacation: false,
+			}
+			s.storage.Set(fmt.Sprintf("vacation_%d", foundUserId), status)
+
+			message := fmt.Sprintf("Пользователь <a href=\"tg://user?id=%d\">%s</a> возвращен на работу",
+				foundUserId,
+				userName)
+			msg := tg.NewMessage(update.Message.Chat.ID, message)
+			msg.ParseMode = tg.ModeHTML
+			msg.ReplyMarkup = tg.NewRemoveKeyboard(true)
+			msg.ReplyToMessageID = update.Message.MessageID
+			bot.Send(msg)
+
+			// Обновляем список отпусков
+			s.handleVacationsCommand(update, bot)
+		}
+
+		return true
+	}
+
 	switch update.Message.Text {
 	case ButtonTakeVacation, ButtonChangeVacation:
 		// Сбрасываем состояние админ-панели
@@ -390,10 +455,24 @@ func (s *ServiceVacation) handleVacationsCommand(update tg.Update, bot *tg.BotAP
 		return true
 	}
 
+	// Создаем клавиатуру с кнопками для возврата пользователей
+	buttons, err := s.createVacationsListKeyboard(update)
+	if err != nil {
+		logger.Instance.Error("Ошибка при создании клавиатуры", "error", err)
+		return true
+	}
+
 	msg := tg.NewMessage(update.Message.Chat.ID, message)
 	msg.ParseMode = tg.ModeHTML
-	bot.Send(msg)
 
+	if len(buttons) > 0 {
+		keyboard := tg.NewReplyKeyboard(buttons...)
+		keyboard.OneTimeKeyboard = true
+		keyboard.Selective = true
+		msg.ReplyMarkup = keyboard
+	}
+
+	bot.Send(msg)
 	return true
 }
 
@@ -734,4 +813,44 @@ func (s *ServiceVacation) createAdminActionsKeyboard(userId int64) tg.ReplyKeybo
 	keyboard.Selective = true
 
 	return keyboard
+}
+
+// Создает клавиатуру с пользователями в отпуске
+func (s *ServiceVacation) createVacationsListKeyboard(update tg.Update) ([][]tg.KeyboardButton, error) {
+	var buttons [][]tg.KeyboardButton
+
+	// Получаем всех пользователей из env
+	allUsers, err := access.ParseUserIds("REVIEW_PARTICIPANTS_IDS")
+	if err != nil {
+		return nil, fmt.Errorf("ошибка при парсинге списка пользователей: %w", err)
+	}
+
+	// Проверяем статус отпуска для каждого пользователя
+	for _, userId := range allUsers {
+		var status StatusVacationUser
+		exists := s.storage.Get(fmt.Sprintf("vacation_%d", userId), &status)
+
+		if exists && status.IsOnVacation {
+			member, err := s.bot.GetChatMember(tg.GetChatMemberConfig{
+				ChatConfigWithUser: tg.ChatConfigWithUser{
+					ChatID: update.Message.Chat.ID,
+					UserID: userId,
+				},
+			})
+
+			if err != nil {
+				continue
+			}
+
+			buttonText := fmt.Sprintf("🔄 Вернуть %s %s", member.User.FirstName, member.User.LastName)
+			buttons = append(buttons, []tg.KeyboardButton{tg.NewKeyboardButton(buttonText)})
+		}
+	}
+
+	// Добавляем кнопку отмены
+	if len(buttons) > 0 {
+		buttons = append(buttons, []tg.KeyboardButton{tg.NewKeyboardButton(ButtonCancel)})
+	}
+
+	return buttons, nil
 }
