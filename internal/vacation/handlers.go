@@ -103,10 +103,9 @@ func (s *ServiceVacation) GetDefaultKeyboard(userId int64) tg.ReplyKeyboardMarku
 			tg.NewKeyboardButton("➕ Отправить в отпуск"))
 	}
 
-	defaultButtons = append(defaultButtons, tg.NewKeyboardButton(ButtonCancel))
-
 	keyboard := tg.NewReplyKeyboard(
 		tg.NewKeyboardButtonRow(defaultButtons...),
+		tg.NewKeyboardButtonRow(tg.NewKeyboardButton(ButtonCancel)),
 	)
 	keyboard.Selective = true
 	return keyboard
@@ -989,4 +988,62 @@ func (s *ServiceVacation) handleChangeVacation(update tg.Update, bot *tg.BotAPI,
 
 	bot.Send(msg)
 	return true
+}
+
+// Проверяет и обновляет статусы отпусков всех пользователей
+func (s *ServiceVacation) CheckAndUpdateVacationStatuses(chatID int64) {
+	allUsers, err := access.ParseUserIds("REVIEW_PARTICIPANTS_IDS")
+	if err != nil {
+		logger.Instance.Error("Ошибка при парсинге списка пользователей", "error", err)
+		return
+	}
+
+	currentDate := time.Now()
+	currentDate = time.Date(currentDate.Year(), currentDate.Month(), currentDate.Day(), 0, 0, 0, 0, currentDate.Location())
+
+	// Проверка статуса отпуска для каждого пользователя
+	for _, userId := range allUsers {
+		var status StatusVacationUser
+		exists := s.storage.Get(fmt.Sprintf("vacation_%d", userId), &status)
+
+		if exists && status.IsOnVacation {
+			currentDateUTC := time.Date(currentDate.Year(), currentDate.Month(), currentDate.Day(), 0, 0, 0, 0, time.UTC)
+			returnDateUTC := time.Date(status.ReturnDate.Year(), status.ReturnDate.Month(), status.ReturnDate.Day(), 0, 0, 0, 0, time.UTC)
+
+			// Если дата возврата наступила или прошла, возвращаем пользователя из отпуска
+			if currentDateUTC.After(returnDateUTC) || currentDateUTC.Equal(returnDateUTC) {
+
+				member, err := s.bot.GetChatMember(tg.GetChatMemberConfig{
+					ChatConfigWithUser: tg.ChatConfigWithUser{
+						ChatID: chatID,
+						UserID: userId,
+					},
+				})
+
+				if err != nil {
+					logger.Instance.Error("Ошибка при получении информации о пользователе", "error", err, "user_id", userId)
+					continue
+				}
+
+				status.IsOnVacation = false
+				s.storage.Set(fmt.Sprintf("vacation_%d", userId), status)
+
+				message := fmt.Sprintf("Пользователь <a href=\"tg://user?id=%d\">%s</a> автоматически возвращен из отпуска",
+					userId,
+					member.User.FirstName+" "+member.User.LastName)
+
+				msg := tg.NewMessage(chatID, message)
+				msg.ParseMode = tg.ModeHTML
+
+				_, err = s.bot.Send(msg)
+				if err != nil {
+					logger.Instance.Error("Ошибка отправки уведомления о возврате из отпуска", "error", err)
+				}
+
+				logger.Instance.Info("Пользователь автоматически возвращен из отпуска",
+					"user_id", userId,
+					"name", member.User.FirstName+" "+member.User.LastName)
+			}
+		}
+	}
 }
