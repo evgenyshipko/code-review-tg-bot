@@ -355,7 +355,10 @@ func (s *ServiceVacation) handleStatus(update tg.Update, bot *tg.BotAPI) {
 		status = StatusVacationUser{
 			IsOnVacation: false,
 		}
-		s.storage.Set(fmt.Sprintf("vacation_%d", update.Message.From.ID), status)
+		if err := s.saveVacationStatus(update.Message.From.ID, status); err != nil {
+			logger.Instance.Error("Ошибка сохранения статуса отпуска", "error", err)
+			return
+		}
 
 		// Сбрасываем состояние пользователя
 		s.storage.Set(fmt.Sprintf("user_state_%d", update.Message.From.ID), UserStateNone)
@@ -403,7 +406,10 @@ func (s *ServiceVacation) handleStatus(update tg.Update, bot *tg.BotAPI) {
 				}
 
 				// Обновляем статус в бд
-				s.storage.Set(fmt.Sprintf("vacation_%d", update.Message.From.ID), status)
+				if err := s.saveVacationStatus(update.Message.From.ID, status); err != nil {
+					logger.Instance.Error("Ошибка сохранения статуса отпуска", "error", err)
+					return
+				}
 
 				// Сбрасываем состояние пользователя
 				s.storage.Set(fmt.Sprintf("user_state_%d", update.Message.From.ID), UserStateNone)
@@ -616,7 +622,10 @@ func (s *ServiceVacation) handleAdminActionsForUser(update tg.Update, bot *tg.Bo
 		status = StatusVacationUser{
 			IsOnVacation: false,
 		}
-		s.storage.Set(fmt.Sprintf("vacation_%d", state.SelectedUID), status)
+		if err := s.saveVacationStatus(state.SelectedUID, status); err != nil {
+			logger.Instance.Error("Ошибка сохранения статуса отпуска", "error", err)
+			return
+		}
 
 		message := fmt.Sprintf("Пользователь <a href=\"tg://user?id=%d\">%s</a> возвращен на работу",
 			state.SelectedUID,
@@ -692,7 +701,10 @@ func (s *ServiceVacation) handleAdminSetVacation(update tg.Update, bot *tg.BotAP
 		IsOnVacation: true,
 		ReturnDate:   returnDate,
 	}
-	s.storage.Set(fmt.Sprintf("vacation_%d", state.SelectedUID), status)
+	if err := s.saveVacationStatus(state.SelectedUID, status); err != nil {
+		logger.Instance.Error("Ошибка сохранения статуса отпуска", "error", err)
+		return
+	}
 
 	message := fmt.Sprintf("Пользователь <a href=\"tg://user?id=%d\">%s</a> добавлен в отпуск до %s",
 		state.SelectedUID,
@@ -943,7 +955,10 @@ func (s *ServiceVacation) setUserReturnedFromVacation(userId int64, userName str
 	status := StatusVacationUser{
 		IsOnVacation: false,
 	}
-	s.storage.Set(fmt.Sprintf("vacation_%d", userId), status)
+	if err := s.saveVacationStatus(userId, status); err != nil {
+		logger.Instance.Error("Ошибка сохранения статуса отпуска", "error", err)
+		return
+	}
 
 	message := fmt.Sprintf("Пользователь <a href=\"tg://user?id=%d\">%s</a> возвращен на работу",
 		userId,
@@ -990,60 +1005,20 @@ func (s *ServiceVacation) handleChangeVacation(update tg.Update, bot *tg.BotAPI,
 	return true
 }
 
-// Проверяет и обновляет статусы отпусков всех пользователей
-func (s *ServiceVacation) CheckAndUpdateVacationStatuses(chatID int64) {
-	allUsers, err := access.ParseUserIds("REVIEW_PARTICIPANTS_IDS")
-	if err != nil {
-		logger.Instance.Error("Ошибка при парсинге списка пользователей", "error", err)
-		return
+// Сохраняет статус отпуска пользователя с TTL
+func (s *ServiceVacation) saveVacationStatus(userId int64, status StatusVacationUser) error {
+	if !status.IsOnVacation {
+		s.storage.Set(fmt.Sprintf("vacation_%d", userId), status)
+		return nil
 	}
 
-	currentDate := time.Now()
-	currentDate = time.Date(currentDate.Year(), currentDate.Month(), currentDate.Day(), 0, 0, 0, 0, currentDate.Location())
+	now := time.Now()
+	returnDate := time.Date(status.ReturnDate.Year(), status.ReturnDate.Month(), status.ReturnDate.Day(), 0, 0, 0, 0, now.Location())
+	ttl := returnDate.Sub(now)
 
-	// Проверка статуса отпуска для каждого пользователя
-	for _, userId := range allUsers {
-		var status StatusVacationUser
-		exists := s.storage.Get(fmt.Sprintf("vacation_%d", userId), &status)
-
-		if exists && status.IsOnVacation {
-			currentDateUTC := time.Date(currentDate.Year(), currentDate.Month(), currentDate.Day(), 0, 0, 0, 0, time.UTC)
-			returnDateUTC := time.Date(status.ReturnDate.Year(), status.ReturnDate.Month(), status.ReturnDate.Day(), 0, 0, 0, 0, time.UTC)
-
-			// Если дата возврата наступила или прошла, возвращаем пользователя из отпуска
-			if currentDateUTC.After(returnDateUTC) || currentDateUTC.Equal(returnDateUTC) {
-
-				member, err := s.bot.GetChatMember(tg.GetChatMemberConfig{
-					ChatConfigWithUser: tg.ChatConfigWithUser{
-						ChatID: chatID,
-						UserID: userId,
-					},
-				})
-
-				if err != nil {
-					logger.Instance.Error("Ошибка при получении информации о пользователе", "error", err, "user_id", userId)
-					continue
-				}
-
-				status.IsOnVacation = false
-				s.storage.Set(fmt.Sprintf("vacation_%d", userId), status)
-
-				message := fmt.Sprintf("Пользователь <a href=\"tg://user?id=%d\">%s</a> автоматически возвращен из отпуска",
-					userId,
-					member.User.FirstName+" "+member.User.LastName)
-
-				msg := tg.NewMessage(chatID, message)
-				msg.ParseMode = tg.ModeHTML
-
-				_, err = s.bot.Send(msg)
-				if err != nil {
-					logger.Instance.Error("Ошибка отправки уведомления о возврате из отпуска", "error", err)
-				}
-
-				logger.Instance.Info("Пользователь автоматически возвращен из отпуска",
-					"user_id", userId,
-					"name", member.User.FirstName+" "+member.User.LastName)
-			}
-		}
+	if ttl <= 0 {
+		return fmt.Errorf("некорректная дата возврата из отпуска")
 	}
+
+	return s.storage.SetWithTTL(fmt.Sprintf("vacation_%d", userId), status, ttl)
 }

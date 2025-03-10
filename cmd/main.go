@@ -93,12 +93,6 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI, rs *reviewers.ReviewersServi
 		}
 	}()
 
-	// Проверяем и обновляем статусы отпусков при каждом сообщении
-	// Это позволит автоматически возвращать пользователей из отпуска
-	if update.Message != nil {
-		vs.CheckAndUpdateVacationStatuses(update.Message.Chat.ID)
-	}
-
 	// Обработка команд
 	if update.Message != nil && update.Message.IsCommand() {
 		handleCommands(update, bot, vs)

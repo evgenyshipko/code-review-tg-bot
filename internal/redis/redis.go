@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -59,6 +60,11 @@ func (r *RedisClient) withNamespace(key string) string {
 // Set записывает значение
 func (r *RedisClient) Set(key string, value interface{}) error {
 	return r.client.Set(ctx, r.withNamespace(key), value, -1).Err()
+}
+
+// Записывает значение с TTL
+func (r *RedisClient) SetWithTTL(key string, value string, ttl time.Duration) error {
+	return r.client.Set(ctx, r.withNamespace(key), value, ttl).Err()
 }
 
 // Get получает значение

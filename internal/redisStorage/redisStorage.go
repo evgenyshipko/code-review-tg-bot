@@ -2,6 +2,8 @@ package redisStorage
 
 import (
 	"encoding/json"
+	"fmt"
+	"time"
 
 	"code-review-tg-bot/internal/logger"
 	"code-review-tg-bot/internal/redis"
@@ -31,6 +33,26 @@ func (s *RedisStorage) Set(key string, value interface{}) {
 	}
 
 	logger.Instance.Debugw("Установлено значение в Redis", "key", key, "value", value)
+}
+
+func (s *RedisStorage) SetWithTTL(key string, value interface{}, ttl time.Duration) error {
+	result, err := json.Marshal(value)
+	if err != nil {
+		return fmt.Errorf("ошибка сериализации: %w", err)
+	}
+
+	err = s.client.SetWithTTL(key, string(result), ttl)
+	if err != nil {
+		return fmt.Errorf("ошибка сохранения в Redis с TTL: %w", err)
+	}
+
+	logger.Instance.Debugw("Значение сохранено в Redis с TTL",
+		"key", key,
+		"ttl", ttl,
+		"ttl_days", ttl.Hours()/24,
+		"ttl_hours", ttl.Hours())
+
+	return nil
 }
 
 func (s *RedisStorage) Get(key string, result interface{}) bool {
