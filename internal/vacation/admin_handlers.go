@@ -136,11 +136,6 @@ func (s *ServiceVacation) handleAdminActionsForUser(update tg.Update, bot *tg.Bo
 			return
 		}
 
-		// Устанавливаем статус "не в отпуске"
-		status = StatusVacationUser{
-			IsOnVacation: false,
-		}
-
 		s.endVacation(state.SelectedUID)
 
 		message := fmt.Sprintf("Пользователь <a href=\"tg://user?id=%d\">%s</a> возвращен на работу",
