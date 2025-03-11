@@ -6,10 +6,12 @@ import (
 	"code-review-tg-bot/internal/redis"
 	"code-review-tg-bot/internal/redisStorage"
 	"os"
+	"time"
 )
 
 type Storage interface {
 	Set(key string, value interface{})
+	SetWithTTL(key string, value interface{}, ttl time.Duration) error
 	Get(key string, result interface{}) bool
 	Delete(key string)
 }

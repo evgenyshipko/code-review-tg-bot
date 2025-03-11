@@ -3,6 +3,7 @@ package reviewers
 import (
 	"code-review-tg-bot/internal/logger"
 	"code-review-tg-bot/internal/storage"
+	"code-review-tg-bot/internal/vacation"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,12 +26,14 @@ type GetReviewerFunc func(chatId int64, authorId int64, changedRowsCount int) ([
 type ReviewersStorage map[int64]usedMembersType
 
 type ReviewersService struct {
-	storage storage.Storage
+	storage         storage.Storage
+	vacationService *vacation.ServiceVacation
 }
 
-func NewReviewersService(storage storage.Storage) *ReviewersService {
+func NewReviewersService(storage storage.Storage, vacationService *vacation.ServiceVacation) *ReviewersService {
 	return &ReviewersService{
-		storage: storage,
+		storage:         storage,
+		vacationService: vacationService,
 	}
 }
 
@@ -98,7 +101,6 @@ func (rs *ReviewersService) getChatUsedReviewersData(chatId int64) *usedMembersT
 }
 
 func (s *ReviewersService) GetReviewers(chatId int64, authorId int64, reviewerCount int, getChatMember GetChatMemberType) ([]tg.ChatMember, error) {
-
 	chatMembers, err := getChatMembers(chatId, getChatMember)
 	if err != nil {
 		return []tg.ChatMember{}, err
@@ -116,7 +118,7 @@ func (s *ReviewersService) GetReviewers(chatId int64, authorId int64, reviewerCo
 	// vacantMembers - те юзеры, которых рассматриваем на ревью
 	vacantMembers := make([]tg.ChatMember, 0, len(chatMembers))
 	for _, member := range chatMembers {
-		if !usedMemberIds[member.User.ID] && member.User.ID != authorId {
+		if !usedMemberIds[member.User.ID] && member.User.ID != authorId && !s.vacationService.IsUserOnVacation(member.User.ID) {
 			vacantMembers = append(vacantMembers, member)
 		}
 	}

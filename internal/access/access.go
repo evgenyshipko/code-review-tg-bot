@@ -48,3 +48,67 @@ func isUserInMap(userId int64, userMap UserIds) bool {
 func GetAccessDeniedMessage(username string) string {
 	return fmt.Sprintf("@%s у вас нет доступа к этому боту", username)
 }
+
+// ParseUserIds парсит список пользователей из .env
+func ParseUserIds(envName string) (UserIds, error) {
+	var userIds UserIds
+	err := json.Unmarshal([]byte(os.Getenv(envName)), &userIds)
+
+	return userIds, err
+}
+
+// IsUserInMap проверяет, есть ли пользователь в мапе
+func IsUserInMap(userId int64, userMap UserIds) bool {
+	for _, id := range userMap {
+		if id == userId {
+			return true
+		}
+	}
+	return false
+}
+
+// Проверяет, является ли пользователь администратором
+func IsAdmin(userID int64) bool {
+	adminsIdsMap, err := ParseUserIds("ADMINS_IDS")
+	if err != nil {
+		logger.Instance.Error("Ошибка при парсинге списка администраторов", "error", err)
+		return false
+	}
+
+	return IsUserInMap(userID, adminsIdsMap)
+}
+
+// Проверяет, является ли пользователь ревьюером
+func IsReviewer(userId int64) bool {
+	reviewers, err := ParseUserIds("REVIEW_PARTICIPANTS_IDS")
+	if err != nil {
+		return false
+	}
+
+	for _, id := range reviewers {
+		if id == userId {
+			return true
+		}
+	}
+	return false
+}
+
+// Проверяет, имеет ли пользователь доступ к функциям отпуска
+func HasVacationAccess(userId int64) bool {
+	return IsReviewer(userId)
+}
+
+// Проверяет, имеет ли пользователь доступ к админ-функциям
+func HasAdminAccess(userId int64) bool {
+	return IsAdmin(userId)
+}
+
+// Проверяет, является ли пользователь тестировщиком
+func IsTester(userId int64) bool {
+	testers, err := ParseUserIds("TESTERS_IDS")
+	if err != nil {
+		return false
+	}
+
+	return IsUserInMap(userId, testers)
+}
