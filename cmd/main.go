@@ -99,19 +99,8 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI, rs *reviewers.ReviewersServi
 		return
 	}
 
-	// Проверяем состояние админ-панели
-	if update.Message != nil {
-		var adminState vacation.AdminPanelState
-		hasState := storage.Get(fmt.Sprintf("admin_state_%d", update.Message.From.ID), &adminState)
-
-		if hasState && adminState.State != vacation.AdminStateNone {
-			vs.HandleAdminPanel(update, bot, adminState)
-			return
-		}
-	}
-
-	// Обработка нажатий на кнопки
-	if update.Message != nil && vs.HandleButtonPress(update, bot) {
+	// Обработка отпусков
+	if vs.HandleUpdate(update, bot) {
 		return
 	}
 
@@ -127,14 +116,6 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI, rs *reviewers.ReviewersServi
 		sendNewMessage(access.GetAccessDeniedMessage(update.Message.From.UserName), bot, update)
 		return
 	}
-
-	// Проверяем текстовые команды, связанные с отпуском и тегом бота
-	if vs.HandleTextCommand(update, bot) {
-		return
-	}
-
-	// Сбрасываем все состояния пользователя при обработке мердж реквеста
-	vs.ResetAllStates(update.Message.From.ID)
 
 	//RND: разобраться - что за параметр -1
 	urls := xurls.Strict.FindAllString(update.Message.Text, -1)
@@ -232,7 +213,7 @@ func sendNewMessage(message string, bot *tg.BotAPI, update tg.Update) {
 	}
 }
 
-// Обработка команд (кнопки)
+// Обработка команд
 func handleCommands(update tg.Update, bot *tg.BotAPI, vacationService *vacation.ServiceVacation) {
 	if update.Message == nil {
 		return

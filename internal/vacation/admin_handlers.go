@@ -17,7 +17,7 @@ func (s *ServiceVacation) HandleAdminPanel(update tg.Update, bot *tg.BotAPI, sta
 
 	if update.Message.Text == ButtonCancel {
 		// Сбрасываем состояние админ-панели
-		s.ResetAdminState(update.Message.From.ID)
+		s.resetAdminState(update.Message.From.ID)
 
 		msg := tg.NewMessage(update.Message.Chat.ID, MsgKeyboardClosed)
 		msg.ReplyMarkup = tg.NewRemoveKeyboard(true)
@@ -51,19 +51,9 @@ func (s *ServiceVacation) handleAdminPickUser(update tg.Update, bot *tg.BotAPI, 
 
 		// Получаем ID выбранного пользователя
 		var selectedUserId int64
-		for _, uid := range allUsers {
-			member, err := s.bot.GetChatMember(tg.GetChatMemberConfig{
-				ChatConfigWithUser: tg.ChatConfigWithUser{
-					ChatID: update.Message.Chat.ID,
-					UserID: uid,
-				},
-			})
-			if err != nil {
-				continue
-			}
+		for userNameFromEnv, uid := range allUsers {
 
-			fullName := strings.TrimSpace(member.User.FirstName + " " + member.User.LastName)
-			if fullName == selectedFullName {
+			if userNameFromEnv == selectedFullName {
 				selectedUserId = uid
 				break
 			}
@@ -133,20 +123,10 @@ func (s *ServiceVacation) handleAdminActionsForUser(update tg.Update, bot *tg.Bo
 
 		// Ищем имя пользователя по ID
 		var username string
-		for _, uid := range allUsers {
+		for userNameFromEnv, uid := range allUsers {
 			if uid == state.SelectedUID {
-				member, err := s.bot.GetChatMember(tg.GetChatMemberConfig{
-					ChatConfigWithUser: tg.ChatConfigWithUser{
-						ChatID: update.Message.Chat.ID,
-						UserID: state.SelectedUID,
-					},
-				})
-				if err != nil {
-					logger.Instance.Error("Ошибка при получении информации о пользователе", "error", err)
-					return
-				}
 
-				username = member.User.FirstName + " " + member.User.LastName
+				username = userNameFromEnv
 				break
 			}
 		}
@@ -160,10 +140,8 @@ func (s *ServiceVacation) handleAdminActionsForUser(update tg.Update, bot *tg.Bo
 		status = StatusVacationUser{
 			IsOnVacation: false,
 		}
-		if err := s.saveVacationStatus(state.SelectedUID, status); err != nil {
-			logger.Instance.Error("Ошибка сохранения статуса отпуска", "error", err)
-			return
-		}
+
+		s.endVacation(state.SelectedUID)
 
 		message := fmt.Sprintf("Пользователь <a href=\"tg://user?id=%d\">%s</a> возвращен на работу",
 			state.SelectedUID,
@@ -209,21 +187,10 @@ func (s *ServiceVacation) handleAdminSetVacation(update tg.Update, bot *tg.BotAP
 
 	// Поиск имени пользователя
 	var username string
-	for _, uid := range allUsers {
+	for userNameFromEnv, uid := range allUsers {
 		if uid == state.SelectedUID {
-			member, err := s.bot.GetChatMember(tg.GetChatMemberConfig{
-				ChatConfigWithUser: tg.ChatConfigWithUser{
-					ChatID: update.Message.Chat.ID,
-					UserID: state.SelectedUID,
-				},
-			})
 
-			if err != nil {
-				logger.Instance.Error("Ошибка при получении информации о пользователе", "error", err)
-				return
-			}
-
-			username = member.User.FirstName + " " + member.User.LastName
+			username = userNameFromEnv
 
 			break
 		}
@@ -239,7 +206,7 @@ func (s *ServiceVacation) handleAdminSetVacation(update tg.Update, bot *tg.BotAP
 		IsOnVacation: true,
 		ReturnDate:   returnDate,
 	}
-	if err := s.saveVacationStatus(state.SelectedUID, status); err != nil {
+	if err := s.startVacation(state.SelectedUID, status); err != nil {
 		logger.Instance.Error("Ошибка сохранения статуса отпуска", "error", err)
 		return
 	}
@@ -276,7 +243,7 @@ func (s *ServiceVacation) handleAdminCommand(update tg.Update, bot *tg.BotAPI) b
 		return true
 	}
 
-	keyboard := s.createUsersKeyboard(allUsers, update.Message.Chat.ID)
+	keyboard := s.createUsersKeyboard(allUsers)
 	msg := tg.NewMessage(update.Message.Chat.ID, "Выберите пользователя:")
 	msg.ReplyMarkup = keyboard
 	msg.ReplyToMessageID = update.Message.MessageID
@@ -295,7 +262,7 @@ func (s *ServiceVacation) handleAdminCommand(update tg.Update, bot *tg.BotAPI) b
 	return true
 }
 
-func (s *ServiceVacation) handleReturnFromVacation(update tg.Update, bot *tg.BotAPI, userName string) bool {
+func (s *ServiceVacation) handleReturnFromVacation(update tg.Update, bot *tg.BotAPI, userNameFromEnv string) bool {
 	if !access.IsAdmin(update.Message.From.ID) {
 		return false
 	}
@@ -308,10 +275,10 @@ func (s *ServiceVacation) handleReturnFromVacation(update tg.Update, bot *tg.Bot
 	}
 
 	// Ищем пользователя по имени среди тех, кто в отпуске
-	foundUserId := s.findUserIdByName(allUsers, update.Message.Chat.ID, userName)
+	foundUserId := s.findUserIdByName(allUsers, userNameFromEnv)
 
 	if foundUserId != 0 {
-		s.setUserReturnedFromVacation(foundUserId, userName, update, bot)
+		s.setUserReturnedFromVacation(foundUserId, userNameFromEnv, update, bot)
 		s.handleVacationsCommand(update, bot)
 		return true
 	}
@@ -330,7 +297,7 @@ func (s *ServiceVacation) handleChangeVacation(update tg.Update, bot *tg.BotAPI,
 		return true
 	}
 
-	foundUserId := s.findUserIdByName(allUsers, update.Message.Chat.ID, userName)
+	foundUserId := s.findUserIdByName(allUsers, userName)
 	if foundUserId == 0 {
 		return false
 	}
@@ -369,7 +336,7 @@ func (s *ServiceVacation) handleVacationsCommand(update tg.Update, bot *tg.BotAP
 	}
 
 	// Создаем клавиатуру с кнопками для возврата пользователей
-	buttons, err := s.createVacationsListKeyboard(update)
+	buttons, err := s.createVacationsListKeyboard()
 	if err != nil {
 		logger.Instance.Error("Ошибка при создании клавиатуры", "error", err)
 		return true
@@ -390,13 +357,7 @@ func (s *ServiceVacation) handleVacationsCommand(update tg.Update, bot *tg.BotAP
 }
 
 func (s *ServiceVacation) setUserReturnedFromVacation(userId int64, userName string, update tg.Update, bot *tg.BotAPI) {
-	status := StatusVacationUser{
-		IsOnVacation: false,
-	}
-	if err := s.saveVacationStatus(userId, status); err != nil {
-		logger.Instance.Error("Ошибка сохранения статуса отпуска", "error", err)
-		return
-	}
+	s.endVacation(userId)
 
 	message := fmt.Sprintf("Пользователь <a href=\"tg://user?id=%d\">%s</a> возвращен на работу",
 		userId,

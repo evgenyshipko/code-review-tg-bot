@@ -2,42 +2,23 @@ package vacation
 
 import (
 	"code-review-tg-bot/internal/access"
-	"code-review-tg-bot/internal/logger"
 	"fmt"
-	"strings"
 
 	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 // createUsersKeyboard создает клавиатуру со списком пользователей
-func (s *ServiceVacation) createUsersKeyboard(users map[string]int64, chatID int64) tg.ReplyKeyboardMarkup {
+func (s *ServiceVacation) createUsersKeyboard(users map[string]int64) tg.ReplyKeyboardMarkup {
 	var rows [][]tg.KeyboardButton
 
-	for _, userId := range users {
-		// Проверяем, не находится ли пользователь в отпуске
-		var status StatusVacationUser
-		exists := s.storage.Get(fmt.Sprintf("vacation_%d", userId), &status)
-
+	for userNameFromEnv, userId := range users {
 		// Пропускаем пользователей, которые уже в отпуске
-		if exists && status.IsOnVacation {
+		if s.IsUserOnVacation(userId) {
 			continue
 		}
 
-		member, err := s.bot.GetChatMember(tg.GetChatMemberConfig{
-			ChatConfigWithUser: tg.ChatConfigWithUser{
-				ChatID: chatID,
-				UserID: userId,
-			},
-		})
-
-		if err != nil {
-			logger.Instance.Error("Ошибка при получении информации о пользователе", "error", err)
-			continue
-		}
-
-		fullName := strings.TrimSpace(member.User.FirstName + " " + member.User.LastName)
 		rows = append(rows, []tg.KeyboardButton{
-			tg.NewKeyboardButton(fmt.Sprintf("👤 %s", fullName)),
+			tg.NewKeyboardButton(fmt.Sprintf("👤 %s", userNameFromEnv)),
 		})
 	}
 
@@ -89,11 +70,7 @@ func (s *ServiceVacation) createAdminActionsKeyboard(userId int64) tg.ReplyKeybo
 	var buttons [][]tg.KeyboardButton
 	var actionButtons []tg.KeyboardButton
 
-	// Проверяем статус отпуска пользователя
-	var status StatusVacationUser
-	exists := s.storage.Get(fmt.Sprintf("vacation_%d", userId), &status)
-
-	if exists && status.IsOnVacation {
+	if s.IsUserOnVacation(userId) {
 		// Если пользователь в отпуске, показываем только кнопку возврата
 		actionButtons = append(actionButtons, tg.NewKeyboardButton(ButtonChangeVacation), tg.NewKeyboardButton(ButtonReturnToWork))
 	} else {
@@ -112,7 +89,7 @@ func (s *ServiceVacation) createAdminActionsKeyboard(userId int64) tg.ReplyKeybo
 }
 
 // Создает клавиатуру с пользователями в отпуске
-func (s *ServiceVacation) createVacationsListKeyboard(update tg.Update) ([][]tg.KeyboardButton, error) {
+func (s *ServiceVacation) createVacationsListKeyboard() ([][]tg.KeyboardButton, error) {
 	var buttons [][]tg.KeyboardButton
 
 	allUsers, err := access.ParseUserIds("REVIEW_PARTICIPANTS_IDS")
@@ -121,28 +98,14 @@ func (s *ServiceVacation) createVacationsListKeyboard(update tg.Update) ([][]tg.
 	}
 
 	// Проверяем статус отпуска для каждого пользователя
-	for _, userId := range allUsers {
-		var status StatusVacationUser
-		exists := s.storage.Get(fmt.Sprintf("vacation_%d", userId), &status)
-
-		if exists && status.IsOnVacation {
-			member, err := s.bot.GetChatMember(tg.GetChatMemberConfig{
-				ChatConfigWithUser: tg.ChatConfigWithUser{
-					ChatID: update.Message.Chat.ID,
-					UserID: userId,
-				},
-			})
-
-			if err != nil {
-				continue
-			}
+	for userName, userId := range allUsers {
+		if s.IsUserOnVacation(userId) {
 
 			// Добавляем две кнопки для каждого пользователя
-			fullName := fmt.Sprintf("%s %s", member.User.FirstName, member.User.LastName)
 			buttons = append(buttons,
 				[]tg.KeyboardButton{
-					tg.NewKeyboardButton(fmt.Sprintf("%s %s", ButtonReturnFromVacation, fullName)),
-					tg.NewKeyboardButton(fmt.Sprintf("%s %s", ButtonChangeVacation, fullName)),
+					tg.NewKeyboardButton(fmt.Sprintf("%s %s", ButtonReturnFromVacation, userName)),
+					tg.NewKeyboardButton(fmt.Sprintf("%s %s", ButtonChangeVacation, userName)),
 				},
 			)
 		}
@@ -161,10 +124,8 @@ func (s *ServiceVacation) GetDefaultKeyboard(userId int64) tg.ReplyKeyboardMarku
 
 	// Показываем кнопки отпуска только ревьюерам
 	if access.HasVacationAccess(userId) {
-		var status StatusVacationUser
-		exists := s.storage.Get(fmt.Sprintf("vacation_%d", userId), &status)
 
-		if exists && status.IsOnVacation {
+		if s.IsUserOnVacation(userId) {
 			defaultButtons = append(defaultButtons, tg.NewKeyboardButton(ButtonReturnToWork))
 		} else {
 			defaultButtons = append(defaultButtons, tg.NewKeyboardButton(ButtonTakeVacation))

@@ -27,17 +27,24 @@ func (s *ServiceVacation) IsUserOnVacation(userId int64) bool {
 }
 
 // Cбрасывает состояние пользователя
-func (s *ServiceVacation) ResetUserState(userId int64) {
+func (s *ServiceVacation) resetUserState(userId int64) {
 	s.storage.Set(fmt.Sprintf("user_state_%d", userId), UserStateNone)
 }
 
 // Cбрасывает состояние админ-панели
-func (s *ServiceVacation) ResetAdminState(userId int64) {
+func (s *ServiceVacation) resetAdminState(userId int64) {
 	s.storage.Set(fmt.Sprintf("admin_state_%d", userId), AdminPanelState{State: AdminStateNone})
 }
 
 // Cбрасывает все состояния пользователя
 func (s *ServiceVacation) ResetAllStates(userId int64) {
-	s.ResetUserState(userId)
-	s.ResetAdminState(userId)
+	s.resetUserState(userId)
+	s.resetAdminState(userId)
+}
+
+// Получает статус отпуска пользователя
+func (s *ServiceVacation) getStatusVacationUser(userId int64) StatusVacationUser {
+	var state StatusVacationUser
+	s.storage.Get(fmt.Sprintf("vacation_%d", userId), &state)
+	return state
 }

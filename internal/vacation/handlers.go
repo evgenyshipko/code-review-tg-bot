@@ -20,25 +20,12 @@ func (s *ServiceVacation) GetVacationsList(update tg.Update) (string, error) {
 	}
 
 	// Проверяем статус отпуска для каждого пользователя
-	for _, userId := range allUsers {
+	for userNameFromEnv, userId := range allUsers {
 		var status StatusVacationUser
 
-		member, err := s.bot.GetChatMember(tg.GetChatMemberConfig{
-			ChatConfigWithUser: tg.ChatConfigWithUser{
-				ChatID: update.Message.Chat.ID,
-				UserID: userId,
-			},
-		})
-
-		if err != nil {
-			continue
-		}
-
-		exists := s.storage.Get(fmt.Sprintf("vacation_%d", userId), &status)
-
-		if exists && status.IsOnVacation {
+		if s.IsUserOnVacation(userId) {
 			message += fmt.Sprintf("%s - до %s\n",
-				member.User.FirstName+" "+member.User.LastName,
+				userNameFromEnv,
 				status.ReturnDate.Format(DateFormatLayout))
 			hasVacations = true
 		}
@@ -55,26 +42,26 @@ func (s *ServiceVacation) GetVacationsList(update tg.Update) (string, error) {
 func (s *ServiceVacation) GetCommands() []tg.BotCommand {
 	return []tg.BotCommand{
 		{
-			Command:     "rest",
+			Command:     rest,
 			Description: "Уйти в отпуск",
 		},
 		{
-			Command:     "work",
+			Command:     work,
 			Description: "Вернуться к работе",
 		},
 		{
-			Command:     "vacations",
+			Command:     vacations,
 			Description: "Показать список отпусков (только для админов)",
 		},
 		{
-			Command:     "vacations_leave",
+			Command:     vacations_start,
 			Description: "Отправить сотрудника в отпуск (только для админов)",
 		},
 	}
 }
 
 // Сохраняет статус отпуска пользователя с TTL
-func (s *ServiceVacation) saveVacationStatus(userId int64, status StatusVacationUser) error {
+func (s *ServiceVacation) startVacation(userId int64, status StatusVacationUser) error {
 	if !status.IsOnVacation {
 		s.storage.Set(fmt.Sprintf("vacation_%d", userId), status)
 		return nil
@@ -89,4 +76,42 @@ func (s *ServiceVacation) saveVacationStatus(userId int64, status StatusVacation
 	}
 
 	return s.storage.SetWithTTL(fmt.Sprintf("vacation_%d", userId), status, ttl)
+}
+
+func (s *ServiceVacation) endVacation(userId int64) {
+	s.storage.Delete(fmt.Sprintf("vacation_%d", userId))
+}
+
+// Все входящие обновления
+func (s *ServiceVacation) HandleUpdate(update tg.Update, bot *tg.BotAPI) bool {
+
+	handlers := []func(tg.Update, *tg.BotAPI) bool{
+		s.handleAdminUpdate,
+		s.handleButtonPress,
+		s.handleTextCommand,
+	}
+
+	for _, handler := range handlers {
+		if handler(update, bot) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (s *ServiceVacation) handleAdminUpdate(update tg.Update, bot *tg.BotAPI) (executed bool) {
+
+	if update.Message != nil {
+		var adminState AdminPanelState
+		hasState := s.storage.Get(fmt.Sprintf("admin_state_%d", update.Message.From.ID), &adminState)
+
+		if hasState && adminState.State != AdminStateNone {
+			s.HandleAdminPanel(update, bot, adminState)
+			return true
+		}
+	}
+
+	return false
+
 }

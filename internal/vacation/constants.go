@@ -8,7 +8,7 @@ const (
 	ButtonReturnToWork       = "💼 Выход на работу"
 	ButtonCancel             = "❌ Закрыть"
 	ButtonVacationsList      = "📋 Список отпусков"
-	ButtonVacationsLeave     = "➕ Отправить в отпуск"
+	ButtonVacationsStart     = "➕ Отправить в отпуск"
 )
 
 // Константы состояний админ-панели
@@ -33,4 +33,12 @@ const (
 // Константы для сообщений
 const (
 	MsgKeyboardClosed = "Клавиатура закрыта"
+)
+
+// Константы для комманд
+const (
+	rest            = "rest"
+	work            = "work"
+	vacations_start = "vacations_start"
+	vacations       = "vacations"
 )
