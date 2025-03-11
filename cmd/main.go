@@ -10,12 +10,10 @@ import (
 	"code-review-tg-bot/internal/vacation"
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 
 	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/joho/godotenv"
-	"github.com/mvdan/xurls"
 )
 
 // initialized before main call
@@ -68,10 +66,11 @@ func main() {
 
 	vacationService := vacation.NewService(storageInstance, bot)
 	reviewersService := reviewers.NewReviewersService(storageInstance, vacationService)
+	mergeRequestHandler := mergeRequest.NewMergeRequestService(bot, reviewersService)
 
 	// RND как работает цикл и причем тут горутины?
 	for update := range updates {
-		mainLoopFunc(update, bot, reviewersService, vacationService)
+		mainLoopFunc(update, bot, vacationService, mergeRequestHandler)
 	}
 }
 
@@ -84,11 +83,10 @@ func main() {
 //TODO: сделать чтобы бот проставлял ревьюверов в гитлабе
 //TODO: предусмотреть возможность передачи множества сервисов в mainLoopFunc
 
-func mainLoopFunc(update tg.Update, bot *tg.BotAPI, rs *reviewers.ReviewersService, vs *vacation.ServiceVacation) {
+func mainLoopFunc(update tg.Update, bot *tg.BotAPI, vs *vacation.ServiceVacation, mr *mergeRequest.MergeRequestService) {
 	defer func() {
 		if r := recover(); r != nil {
 			logger.Instance.Error("Паника перехвачена", "error", r)
-
 			sendNewMessage(fmt.Sprintf("Что-то пошло не так: %s", r), bot, update)
 		}
 	}()
@@ -103,6 +101,7 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI, rs *reviewers.ReviewersServi
 	if vs.HandleUpdate(update, bot) {
 		return
 	}
+
 	// Обработка команд
 	if update.Message.IsCommand() {
 		handleDefaultCommands(update, bot, vs)
@@ -116,90 +115,10 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI, rs *reviewers.ReviewersServi
 
 	logger.Instance.Infow(fmt.Sprintf("[%s] %s", update.Message.From.UserName, update.Message.Text))
 
-	//RND: разобраться - что за параметр -1
-	urls := xurls.Strict.FindAllString(update.Message.Text, -1)
-
-	if len(urls) == 0 {
-		sendNewMessage("Необходимо добавить ссылку на merge request", bot, update)
-		return
-	}
-
-	mergeRequestDataStorage := make([]mergeRequest.DataExtended, 0, len(urls))
-	totalRowsChanged := 0
-
-	for _, url := range urls {
-		mergeRequestData, err := mergeRequest.GetDataByUrl(url)
-
-		if strings.Count(mergeRequestData.Description, "[ ]") > 1 {
-			msg := fmt.Sprintf(" <a href=\"%s\">Чеклист</a> из описания МР-а не пройден (пустым может быть только пункт \"Тесты пройдены\", когда тесты отвалились)", url)
-			sendNewMessage(msg, bot, update)
-			return
-		}
-
-		if err != nil {
-			logger.Instance.Error(err.Error())
-			sendNewMessage("Что-то пошло не так: "+err.Error(), bot, update)
-			return
-		}
-
-		if mergeRequestData.HasConflicts {
-			msg := fmt.Sprintf("Для начала нужно пофиксить <a href=\"%s\">конфликты</a>", url)
-			sendNewMessage(msg, bot, update)
-			return
-		}
-
-		mergeRequestDataStorage = append(mergeRequestDataStorage, mergeRequestData)
-
-		mergeRequestRowsChanged := mergeRequestData.Deletions + mergeRequestData.Additions
-
-		maxRows, err := strconv.Atoi(os.Getenv("MAXIMUM_ROWS_CHANGED"))
-
-		if err == nil && mergeRequestRowsChanged > maxRows {
-			msg := fmt.Sprintf("В <a href=\"%s\">мр-е</a> слишком много строк (>%d). Нужно разбить МР на несколько частей для нормального восприятия ревьюером", url, maxRows)
-			sendNewMessage(msg, bot, update)
-			return
-		}
-
-		totalRowsChanged += mergeRequestRowsChanged
-	}
-
-	reviewersCount := rs.GetReviewersCount(totalRowsChanged)
-	reviewersList, err := rs.GetReviewers(update.Message.Chat.ID, update.Message.From.ID, reviewersCount, bot.GetChatMember)
-	if err != nil {
+	if err := mr.Handle(update); err != nil {
 		logger.Instance.Error(err.Error())
 		sendNewMessage("Что-то пошло не так: "+err.Error(), bot, update)
-		return
 	}
-
-	message := generateMessageText(mergeRequestDataStorage, reviewersList)
-	sendNewMessage(message, bot, update)
-}
-
-func generateMessageText(data []mergeRequest.DataExtended, reviewerList []tg.ChatMember) string {
-	msg := "Требуется ревью"
-
-	for _, dataEntity := range data {
-
-		if dataEntity.CommitHash != "" {
-			msg += " коммита:\n" + fmt.Sprintf("<a href=\"%s/diffs?commit_id=%s\">%s</a>\nКоммит: %s",
-				dataEntity.Url, dataEntity.CommitHash, dataEntity.Title, dataEntity.CommitHash)
-		} else {
-			msg += ":\n" + fmt.Sprintf("<a href=\"%s\">%s</a>", dataEntity.Url, dataEntity.Title)
-		}
-
-		if dataEntity.Extra != nil {
-			msg += "\n" + *dataEntity.Extra
-		} else if dataEntity.Additions > 0 || dataEntity.Deletions > 0 {
-			msg += "\n" + fmt.Sprintf("Размер: +%d -%d", dataEntity.Additions, dataEntity.Deletions)
-
-		}
-	}
-
-	msg += "\nРевьюеры: "
-	for _, reviewer := range reviewerList {
-		msg += "@" + reviewer.User.UserName + " "
-	}
-	return msg
 }
 
 func sendNewMessage(message string, bot *tg.BotAPI, update tg.Update) {
