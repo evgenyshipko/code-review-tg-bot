@@ -71,7 +71,7 @@ func main() {
 
 	// RND как работает цикл и причем тут горутины?
 	for update := range updates {
-		mainLoopFunc(update, bot, reviewersService, vacationService, storageInstance)
+		mainLoopFunc(update, bot, reviewersService, vacationService)
 	}
 }
 
@@ -84,7 +84,7 @@ func main() {
 //TODO: сделать чтобы бот проставлял ревьюверов в гитлабе
 //TODO: предусмотреть возможность передачи множества сервисов в mainLoopFunc
 
-func mainLoopFunc(update tg.Update, bot *tg.BotAPI, rs *reviewers.ReviewersService, vs *vacation.ServiceVacation, storage storage.Storage) {
+func mainLoopFunc(update tg.Update, bot *tg.BotAPI, rs *reviewers.ReviewersService, vs *vacation.ServiceVacation) {
 	defer func() {
 		if r := recover(); r != nil {
 			logger.Instance.Error("Паника перехвачена", "error", r)
@@ -92,6 +92,12 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI, rs *reviewers.ReviewersServi
 			sendNewMessage(fmt.Sprintf("Что-то пошло не так: %s", r), bot, update)
 		}
 	}()
+
+	// Проверяем доступ пользователя
+	if !access.HasAccess(update.Message.From.ID) {
+		sendNewMessage(access.GetAccessDeniedMessage(update.Message.From.UserName), bot, update)
+		return
+	}
 
 	// Обработка команд
 	if update.Message != nil && update.Message.IsCommand() {
@@ -110,12 +116,6 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI, rs *reviewers.ReviewersServi
 	}
 
 	logger.Instance.Infow(fmt.Sprintf("[%s] %s", update.Message.From.UserName, update.Message.Text))
-
-	// Проверяем доступ пользователя
-	if !access.HasAccess(update.Message.From.ID) {
-		sendNewMessage(access.GetAccessDeniedMessage(update.Message.From.UserName), bot, update)
-		return
-	}
 
 	//RND: разобраться - что за параметр -1
 	urls := xurls.Strict.FindAllString(update.Message.Text, -1)
