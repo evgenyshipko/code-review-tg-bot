@@ -102,3 +102,13 @@ func HasVacationAccess(userId int64) bool {
 func HasAdminAccess(userId int64) bool {
 	return IsAdmin(userId)
 }
+
+// Проверяет, является ли пользователь тестировщиком
+func IsTester(userId int64) bool {
+	testers, err := ParseUserIds("TESTERS_IDS")
+	if err != nil {
+		return false
+	}
+
+	return IsUserInMap(userId, testers)
+}

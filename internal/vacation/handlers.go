@@ -39,7 +39,7 @@ func (s *ServiceVacation) GetVacationsList(update tg.Update) (string, error) {
 
 // Возвращает список команд, связанных с отпусками
 func (s *ServiceVacation) GetCommands() []tg.BotCommand {
-	return []tg.BotCommand{
+	commands := []tg.BotCommand{
 		{
 			Command:     rest,
 			Description: "Уйти в отпуск",
@@ -57,12 +57,26 @@ func (s *ServiceVacation) GetCommands() []tg.BotCommand {
 			Description: "Отправить сотрудника в отпуск (только для админов)",
 		},
 	}
+
+	testers, err := access.ParseUserIds("TESTERS_IDS")
+	if err == nil && len(testers) > 0 {
+		commands = append(commands, tg.BotCommand{
+			Command:     test_vacation,
+			Description: "Уйти в отпуск на 1 минуту (тестовый режим)",
+		})
+	}
+
+	return commands
 }
 
 // Сохраняет статус отпуска пользователя с TTL
 func (s *ServiceVacation) startVacation(userId int64, returnDate time.Time) error {
 	now := time.Now()
-	returnDate = time.Date(returnDate.Year(), returnDate.Month(), returnDate.Day(), 0, 0, 0, 0, now.Location())
+
+	// Для обычного отпуска обнуляем время
+	if returnDate.Sub(now) > 24*time.Hour {
+		returnDate = time.Date(returnDate.Year(), returnDate.Month(), returnDate.Day(), 0, 0, 0, 0, now.Location())
+	}
 
 	ttl := returnDate.Sub(now)
 

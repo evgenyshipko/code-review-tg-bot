@@ -41,4 +41,5 @@ const (
 	work            = "work"
 	vacations_start = "vacations_start"
 	vacations       = "vacations"
+	test_vacation   = "test_vacation"
 )

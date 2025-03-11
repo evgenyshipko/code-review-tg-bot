@@ -66,6 +66,49 @@ func (s *ServiceVacation) HandleCommand(update tg.Update, bot *tg.BotAPI) (execu
 	}
 
 	switch update.Message.Command() {
+	case test_vacation:
+		if !access.IsTester(update.Message.From.ID) {
+			msg := tg.NewMessage(update.Message.Chat.ID, "Команда доступна только для тестировщиков")
+			msg.ReplyToMessageID = update.Message.MessageID
+			bot.Send(msg)
+			return true
+		}
+
+		if !access.HasVacationAccess(update.Message.From.ID) {
+			msg := tg.NewMessage(update.Message.Chat.ID, "У вас нет доступа к этой команде")
+			msg.ReplyToMessageID = update.Message.MessageID
+			bot.Send(msg)
+			return true
+		}
+
+		if s.IsUserOnVacation(update.Message.From.ID) {
+			returnDate := s.getVacationReturnDate(update.Message.From.ID)
+			msg := tg.NewMessage(update.Message.Chat.ID, fmt.Sprintf("@%s, Вы уже находитесь в отпуске до %s",
+				update.Message.From.UserName,
+				returnDate.Format(DateFormatLayout)))
+			msg.ReplyToMessageID = update.Message.MessageID
+			bot.Send(msg)
+			return true
+		}
+
+		// Устанавливаем отпуск на 1 минуту
+		returnDate := time.Now().Add(time.Minute)
+		err := s.startVacation(update.Message.From.ID, returnDate)
+		if err != nil {
+			msg := tg.NewMessage(update.Message.Chat.ID, fmt.Sprintf("Ошибка при установке отпуска: %s", err))
+			msg.ReplyToMessageID = update.Message.MessageID
+			bot.Send(msg)
+			return true
+		}
+
+		message := fmt.Sprintf("@%s ушел в тестовый отпуск на 1 минуту (до %s)",
+			update.Message.From.UserName,
+			returnDate.Format(DateFormatLayout))
+		msg := tg.NewMessage(update.Message.Chat.ID, message)
+		msg.ReplyToMessageID = update.Message.MessageID
+		bot.Send(msg)
+		return true
+
 	case rest, work:
 		if !access.HasVacationAccess(update.Message.From.ID) {
 			msg := tg.NewMessage(update.Message.Chat.ID, "У вас нет доступа к этой команде")
