@@ -89,6 +89,7 @@ func (s *ServiceVacation) HandleUpdate(update tg.Update, bot *tg.BotAPI) bool {
 		s.handleAdminUpdate,
 		s.handleButtonPress,
 		s.handleTextCommand,
+		s.HandleCommand,
 	}
 
 	for _, handler := range handlers {

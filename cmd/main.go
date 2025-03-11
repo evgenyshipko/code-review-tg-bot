@@ -99,14 +99,13 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI, rs *reviewers.ReviewersServi
 		return
 	}
 
-	// Обработка команд
-	if update.Message.IsCommand() {
-		handleCommands(update, bot, vs)
-		return
-	}
-
 	// Обработка отпусков
 	if vs.HandleUpdate(update, bot) {
+		return
+	}
+	// Обработка команд
+	if update.Message.IsCommand() {
+		handleDefaultCommands(update, bot, vs)
 		return
 	}
 
@@ -214,13 +213,8 @@ func sendNewMessage(message string, bot *tg.BotAPI, update tg.Update) {
 }
 
 // Обработка команд
-func handleCommands(update tg.Update, bot *tg.BotAPI, vacationService *vacation.ServiceVacation) {
+func handleDefaultCommands(update tg.Update, bot *tg.BotAPI, vacationService *vacation.ServiceVacation) {
 	if update.Message == nil {
-		return
-	}
-
-	// Сначала запускаем команды, связанные с отпусками
-	if vacationService.HandleCommand(update, bot) {
 		return
 	}
 
