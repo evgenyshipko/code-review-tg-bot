@@ -67,6 +67,8 @@ func (s *ServiceVacation) startVacation(userId int64, returnDate time.Time) erro
 	}
 
 	now := time.Now()
+	returnDate = time.Date(userVacationData.ReturnDate.Year(), userVacationData.ReturnDate.Month(), userVacationData.ReturnDate.Day(), 0, 0, 0, 0, now.Location())
+
 	ttl := returnDate.Sub(now)
 
 	if ttl <= 0 {
