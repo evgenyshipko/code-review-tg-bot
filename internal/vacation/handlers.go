@@ -21,12 +21,12 @@ func (s *ServiceVacation) GetVacationsList(update tg.Update) (string, error) {
 
 	// Проверяем статус отпуска для каждого пользователя
 	for userNameFromEnv, userId := range allUsers {
-		var status StatusVacationUser
+		userState := s.getStatusVacationUser(userId)
 
 		if s.IsUserOnVacation(userId) {
 			message += fmt.Sprintf("%s - до %s\n",
 				userNameFromEnv,
-				status.ReturnDate.Format(DateFormatLayout))
+				userState.ReturnDate.Format(DateFormatLayout))
 			hasVacations = true
 		}
 	}
