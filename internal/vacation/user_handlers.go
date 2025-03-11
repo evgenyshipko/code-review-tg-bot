@@ -29,11 +29,12 @@ func (s *ServiceVacation) handleTextCommand(update tg.Update, bot *tg.BotAPI) (e
 		if strings.Contains(text, keyword) {
 			// Устанавливаем соответствующее состояние
 			if action == ButtonTakeVacation {
-				vacationUserData := s.getVacationUser(update.Message.From.ID)
+
 				if s.IsUserOnVacation(update.Message.From.ID) {
+					returnDate := s.getVacationReturnDate(update.Message.From.ID)
 					msg := tg.NewMessage(update.Message.Chat.ID, fmt.Sprintf("@%s, Вы уже находитесь в отпуске до %s",
 						update.Message.From.UserName,
-						vacationUserData.ReturnDate.Format(DateFormatLayout)))
+						returnDate.Format(DateFormatLayout)))
 					msg.ReplyToMessageID = update.Message.MessageID
 					bot.Send(msg)
 					return true
@@ -78,11 +79,11 @@ func (s *ServiceVacation) HandleCommand(update tg.Update, bot *tg.BotAPI) (execu
 			s.resetAdminState(update.Message.From.ID)
 
 			// Проверяем, не находится ли пользователь уже в отпуске
-			userState := s.getVacationUser(update.Message.From.ID)
 			if s.IsUserOnVacation(update.Message.From.ID) {
+				returnDate := s.getVacationReturnDate(update.Message.From.ID)
 				msg := tg.NewMessage(update.Message.Chat.ID, fmt.Sprintf("@%s, Вы уже находитесь в отпуске до %s",
 					update.Message.From.UserName,
-					userState.ReturnDate.Format(DateFormatLayout)))
+					returnDate.Format(DateFormatLayout)))
 				msg.ReplyToMessageID = update.Message.MessageID
 				bot.Send(msg)
 				return true

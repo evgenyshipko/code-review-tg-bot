@@ -3,6 +3,7 @@ package vacation
 import (
 	"code-review-tg-bot/internal/storage"
 	"fmt"
+	"time"
 
 	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -21,8 +22,7 @@ func NewService(storage storage.Storage, bot *tg.BotAPI) *ServiceVacation {
 
 // Gроверяет, находится ли пользователь в отпуске
 func (s *ServiceVacation) IsUserOnVacation(userId int64) bool {
-	var userVacationData VacationUser
-	exists := s.storage.Get(fmt.Sprintf("vacation_%d", userId), &userVacationData)
+	exists := s.storage.Get(fmt.Sprintf("vacation_%d", userId), &time.Time{})
 	return exists
 }
 
@@ -42,9 +42,9 @@ func (s *ServiceVacation) ResetAllStates(userId int64) {
 	s.resetAdminState(userId)
 }
 
-// Получает данные отпуска пользователя
-func (s *ServiceVacation) getVacationUser(userId int64) VacationUser {
-	var userVacationData VacationUser
-	s.storage.Get(fmt.Sprintf("vacation_%d", userId), &userVacationData)
-	return userVacationData
+// Получает дату возвращения из отпуска
+func (s *ServiceVacation) getVacationReturnDate(userId int64) time.Time {
+	var returnDate time.Time
+	s.storage.Get(fmt.Sprintf("vacation_%d", userId), &returnDate)
+	return returnDate
 }

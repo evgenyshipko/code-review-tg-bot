@@ -21,12 +21,11 @@ func (s *ServiceVacation) GetVacationsList(update tg.Update) (string, error) {
 
 	// Проверяем статус отпуска для каждого пользователя
 	for userNameFromEnv, userId := range allUsers {
-		userState := s.getVacationUser(userId)
-
 		if s.IsUserOnVacation(userId) {
+			returnDate := s.getVacationReturnDate(userId)
 			message += fmt.Sprintf("%s - до %s\n",
 				userNameFromEnv,
-				userState.ReturnDate.Format(DateFormatLayout))
+				returnDate.Format(DateFormatLayout))
 			hasVacations = true
 		}
 	}
@@ -62,12 +61,8 @@ func (s *ServiceVacation) GetCommands() []tg.BotCommand {
 
 // Сохраняет статус отпуска пользователя с TTL
 func (s *ServiceVacation) startVacation(userId int64, returnDate time.Time) error {
-	userVacationData := VacationUser{
-		ReturnDate: returnDate,
-	}
-
 	now := time.Now()
-	returnDate = time.Date(userVacationData.ReturnDate.Year(), userVacationData.ReturnDate.Month(), userVacationData.ReturnDate.Day(), 0, 0, 0, 0, now.Location())
+	returnDate = time.Date(returnDate.Year(), returnDate.Month(), returnDate.Day(), 0, 0, 0, 0, now.Location())
 
 	ttl := returnDate.Sub(now)
 
@@ -75,7 +70,7 @@ func (s *ServiceVacation) startVacation(userId int64, returnDate time.Time) erro
 		return fmt.Errorf("некорректная дата возврата из отпуска")
 	}
 
-	return s.storage.SetWithTTL(fmt.Sprintf("vacation_%d", userId), userVacationData, ttl)
+	return s.storage.SetWithTTL(fmt.Sprintf("vacation_%d", userId), returnDate, ttl)
 }
 
 func (s *ServiceVacation) endVacation(userId int64) {
