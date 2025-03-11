@@ -85,7 +85,7 @@ func (s *ServiceVacation) endVacation(userId int64) {
 // Все входящие обновления
 func (s *ServiceVacation) HandleUpdate(update tg.Update, bot *tg.BotAPI) bool {
 
-	handlers := []func(tg.Update, *tg.BotAPI) bool{
+	handlers := []func(tg.Update, *tg.BotAPI) (executed bool){
 		s.handleAdminUpdate,
 		s.handleButtonPress,
 		s.handleTextCommand,
