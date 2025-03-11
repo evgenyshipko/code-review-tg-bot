@@ -3,9 +3,8 @@ package vacation
 import "time"
 
 // статус отпуска пользователя
-type StatusVacationUser struct {
-	IsOnVacation bool      `json:"is_on_vacation"`
-	ReturnDate   time.Time `json:"return_date,omitempty"`
+type VacationUser struct {
+	ReturnDate time.Time `json:"return_date,omitempty"`
 }
 
 // состояние админ-панели

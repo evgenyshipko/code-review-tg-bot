@@ -103,10 +103,7 @@ func (s *ServiceVacation) handleAdminActionsForUser(update tg.Update, bot *tg.Bo
 
 	case ButtonReturnToWork:
 		// Проверяем, находится ли пользователь в отпуске
-		var status StatusVacationUser
-		exists := s.storage.Get(fmt.Sprintf("vacation_%d", state.SelectedUID), &status)
-
-		if !exists || !status.IsOnVacation {
+		if !s.IsUserOnVacation(update.Message.From.ID) {
 			msg := tg.NewMessage(update.Message.Chat.ID, "Пользователь не находится в отпуске")
 			msg.ReplyToMessageID = update.Message.MessageID
 			msg.ReplyMarkup = tg.NewRemoveKeyboard(true)
@@ -196,12 +193,7 @@ func (s *ServiceVacation) handleAdminSetVacation(update tg.Update, bot *tg.BotAP
 		return
 	}
 
-	// Сохраняем отпуск пользователя в бд
-	status := StatusVacationUser{
-		IsOnVacation: true,
-		ReturnDate:   returnDate,
-	}
-	if err := s.startVacation(state.SelectedUID, status); err != nil {
+	if err := s.startVacation(state.SelectedUID, returnDate); err != nil {
 		logger.Instance.Error("Ошибка сохранения статуса отпуска", "error", err)
 		return
 	}

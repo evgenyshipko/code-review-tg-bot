@@ -100,7 +100,7 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI, rs *reviewers.ReviewersServi
 	}
 
 	// Обработка команд
-	if update.Message != nil && update.Message.IsCommand() {
+	if update.Message.IsCommand() {
 		handleCommands(update, bot, vs)
 		return
 	}

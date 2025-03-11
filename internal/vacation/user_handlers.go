@@ -29,11 +29,11 @@ func (s *ServiceVacation) handleTextCommand(update tg.Update, bot *tg.BotAPI) (e
 		if strings.Contains(text, keyword) {
 			// Устанавливаем соответствующее состояние
 			if action == ButtonTakeVacation {
-				userState := s.getStatusVacationUser(update.Message.From.ID)
+				vacationUserData := s.getVacationUser(update.Message.From.ID)
 				if s.IsUserOnVacation(update.Message.From.ID) {
 					msg := tg.NewMessage(update.Message.Chat.ID, fmt.Sprintf("@%s, Вы уже находитесь в отпуске до %s",
 						update.Message.From.UserName,
-						userState.ReturnDate.Format(DateFormatLayout)))
+						vacationUserData.ReturnDate.Format(DateFormatLayout)))
 					msg.ReplyToMessageID = update.Message.MessageID
 					bot.Send(msg)
 					return true
@@ -78,7 +78,7 @@ func (s *ServiceVacation) HandleCommand(update tg.Update, bot *tg.BotAPI) (execu
 			s.resetAdminState(update.Message.From.ID)
 
 			// Проверяем, не находится ли пользователь уже в отпуске
-			userState := s.getStatusVacationUser(update.Message.From.ID)
+			userState := s.getVacationUser(update.Message.From.ID)
 			if s.IsUserOnVacation(update.Message.From.ID) {
 				msg := tg.NewMessage(update.Message.Chat.ID, fmt.Sprintf("@%s, Вы уже находитесь в отпуске до %s",
 					update.Message.From.UserName,
@@ -205,10 +205,7 @@ func (s *ServiceVacation) handleChangeVacationStatus(update tg.Update, bot *tg.B
 
 	case ButtonReturnToWork:
 		// Проверяем, находится ли пользователь в отпуске
-		var status StatusVacationUser
-		exists := s.storage.Get(fmt.Sprintf("vacation_%d", update.Message.From.ID), &status)
-
-		if !exists || !status.IsOnVacation {
+		if !s.IsUserOnVacation(update.Message.From.ID) {
 			msg := tg.NewMessage(update.Message.Chat.ID, fmt.Sprintf("@%s, Вы не находитесь в отпуске", update.Message.From.UserName))
 			msg.ReplyToMessageID = update.Message.MessageID
 			msg.ReplyMarkup = tg.NewRemoveKeyboard(true)
@@ -261,13 +258,8 @@ func (s *ServiceVacation) handleChangeVacationStatus(update tg.Update, bot *tg.B
 					return
 				}
 
-				status := StatusVacationUser{
-					IsOnVacation: true,
-					ReturnDate:   returnDate,
-				}
-
 				// Обновляем статус в бд
-				if err := s.startVacation(update.Message.From.ID, status); err != nil {
+				if err := s.startVacation(update.Message.From.ID, returnDate); err != nil {
 					logger.Instance.Error("Ошибка сохранения статуса отпуска", "error", err)
 					return
 				}

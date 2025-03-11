@@ -41,7 +41,7 @@ func (s *RedisStorage) SetWithTTL(key string, value interface{}, ttl time.Durati
 		return fmt.Errorf("ошибка сериализации: %w", err)
 	}
 
-	err = s.client.SetWithTTL(key, string(result), ttl)
+	err = s.client.SetWithTTL(key, string(result), 5*time.Second)
 	if err != nil {
 		return fmt.Errorf("ошибка сохранения в Redis с TTL: %w", err)
 	}

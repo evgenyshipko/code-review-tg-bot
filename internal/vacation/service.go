@@ -21,9 +21,9 @@ func NewService(storage storage.Storage, bot *tg.BotAPI) *ServiceVacation {
 
 // Gроверяет, находится ли пользователь в отпуске
 func (s *ServiceVacation) IsUserOnVacation(userId int64) bool {
-	var status StatusVacationUser
-	exists := s.storage.Get(fmt.Sprintf("vacation_%d", userId), &status)
-	return exists && status.IsOnVacation
+	var userVacationData VacationUser
+	exists := s.storage.Get(fmt.Sprintf("vacation_%d", userId), &userVacationData)
+	return exists
 }
 
 // Cбрасывает состояние пользователя
@@ -42,9 +42,9 @@ func (s *ServiceVacation) ResetAllStates(userId int64) {
 	s.resetAdminState(userId)
 }
 
-// Получает статус отпуска пользователя
-func (s *ServiceVacation) getStatusVacationUser(userId int64) StatusVacationUser {
-	var state StatusVacationUser
-	s.storage.Get(fmt.Sprintf("vacation_%d", userId), &state)
-	return state
+// Получает данные отпуска пользователя
+func (s *ServiceVacation) getVacationUser(userId int64) VacationUser {
+	var userVacationData VacationUser
+	s.storage.Get(fmt.Sprintf("vacation_%d", userId), &userVacationData)
+	return userVacationData
 }
