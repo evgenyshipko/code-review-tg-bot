@@ -65,29 +65,6 @@ func (s *ServiceVacation) createDateKeyboard(dates []string) tg.ReplyKeyboardMar
 	return keyboard
 }
 
-// Создает клавиатуру с действиями для выбранного пользователя
-func (s *ServiceVacation) createAdminActionsKeyboard(userId int64) tg.ReplyKeyboardMarkup {
-	var buttons [][]tg.KeyboardButton
-	var actionButtons []tg.KeyboardButton
-
-	if s.IsUserOnVacation(userId) {
-		// Если пользователь в отпуске, показываем только кнопку возврата
-		actionButtons = append(actionButtons, tg.NewKeyboardButton(ButtonChangeVacation), tg.NewKeyboardButton(ButtonReturnToWork))
-	} else {
-		// Если не в отпуске, показываем только кнопку добавления в отпуск
-		actionButtons = append(actionButtons, tg.NewKeyboardButton(ButtonTakeVacation))
-	}
-
-	buttons = append(buttons, actionButtons)
-	buttons = append(buttons, []tg.KeyboardButton{tg.NewKeyboardButton(ButtonCancel)})
-
-	keyboard := tg.NewReplyKeyboard(buttons...)
-	keyboard.OneTimeKeyboard = true
-	keyboard.Selective = true
-
-	return keyboard
-}
-
 // Создает клавиатуру с пользователями в отпуске
 func (s *ServiceVacation) createVacationsListKeyboard() ([][]tg.KeyboardButton, error) {
 	var buttons [][]tg.KeyboardButton
