@@ -16,44 +16,48 @@ func (s *ServiceVacation) handleTextCommand(update tg.Update, bot *tg.BotAPI) (e
 		return false
 	}
 
-	// Сбрасываем состояние админ-панели при работе с обычными командами
-	s.resetAdminState(update.Message.From.ID)
+	msg := strings.ToLower(update.Message.Text)
+	wordsFromMsg := strings.Fields(msg)
+
+	// Строгая проверка на команду
+	if len(wordsFromMsg) != 2 || wordsFromMsg[0] != "@"+strings.ToLower(bot.Self.UserName) {
+		return false
+	}
 
 	var commandMap = map[string]string{
 		"отпуск": ButtonTakeVacation,
 		"работа": ButtonReturnToWork,
 	}
-	text := strings.ToLower(update.Message.Text)
 
-	for keyword, action := range commandMap {
-		if strings.Contains(text, keyword) {
-			// Устанавливаем соответствующее состояние
-			if action == ButtonTakeVacation {
+	if action, ok := commandMap[wordsFromMsg[1]]; ok {
+		// Сбрасывание состояние админ-панели при работе с обычными командами
+		s.resetAdminState(update.Message.From.ID)
 
-				if s.IsUserOnVacation(update.Message.From.ID) {
-					returnDate := s.getVacationReturnDate(update.Message.From.ID)
-					msg := tg.NewMessage(update.Message.Chat.ID, fmt.Sprintf("@%s, Вы уже находитесь в отпуске до %s",
-						update.Message.From.UserName,
-						returnDate.Format(DateFormatLayout)))
-					msg.ReplyToMessageID = update.Message.MessageID
-					bot.Send(msg)
-					return true
-				}
-				s.storage.Set(fmt.Sprintf("user_state_%d", update.Message.From.ID), UserStateSelectingDate)
-			} else {
-				s.ResetAllStates(update.Message.From.ID)
+		// Устанавливаем соответствующее состояние
+		if action == ButtonTakeVacation {
+			if s.IsUserOnVacation(update.Message.From.ID) {
+				returnDate := s.getVacationReturnDate(update.Message.From.ID)
+				msg := tg.NewMessage(update.Message.Chat.ID, fmt.Sprintf("@%s, Вы уже находитесь в отпуске до %s",
+					update.Message.From.UserName,
+					returnDate.Format(DateFormatLayout)))
+				msg.ReplyToMessageID = update.Message.MessageID
+				bot.Send(msg)
+				return true
 			}
-
-			s.handleChangeVacationStatus(tg.Update{
-				Message: &tg.Message{
-					Text:      action,
-					From:      update.Message.From,
-					Chat:      update.Message.Chat,
-					MessageID: update.Message.MessageID,
-				},
-			}, bot)
-			return true
+			s.storage.Set(fmt.Sprintf("user_state_%d", update.Message.From.ID), UserStateSelectingDate)
+		} else {
+			s.ResetAllStates(update.Message.From.ID)
 		}
+
+		s.handleChangeVacationStatus(tg.Update{
+			Message: &tg.Message{
+				Text:      action,
+				From:      update.Message.From,
+				Chat:      update.Message.Chat,
+				MessageID: update.Message.MessageID,
+			},
+		}, bot)
+		return true
 	}
 
 	return false
