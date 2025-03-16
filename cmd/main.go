@@ -9,11 +9,10 @@ import (
 	"code-review-tg-bot/internal/utils"
 	"code-review-tg-bot/internal/vacation"
 	"fmt"
-	"os"
-	"strings"
-
 	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/joho/godotenv"
+	"os"
+	"strings"
 )
 
 // initialized before main call
@@ -68,18 +67,15 @@ func main() {
 	reviewersService := reviewers.NewReviewersService(storageInstance, vacationService)
 	mergeRequestHandler := mergeRequest.NewMergeRequestService(bot, reviewersService)
 
-	// RND как работает цикл и причем тут горутины?
+	// цикл работает пока канал не закрыт
 	for update := range updates {
 		mainLoopFunc(update, bot, vacationService, mergeRequestHandler)
 	}
 }
 
-//TODO: валидация енвов при запуске
+//TODO: валидация енвов при запуске (в том числе бот сейчас не заводится без ADMINS_IDS)
 //TODO: избавиться от переменной GITLAB_DOMAIN?
-//TODO: доступ только разрешенным разработчикам (и админам т.е завести админов)
-//TODO: реализовать команду отпуска
 //TODO: кеширование ручек/истории ревью во внешнем источнике (редис)
-//TODO: если ссылка на определденный коммит, то делать ревью только этого коммита
 //TODO: сделать чтобы бот проставлял ревьюверов в гитлабе
 //TODO: предусмотреть возможность передачи множества сервисов в mainLoopFunc
 
@@ -90,6 +86,11 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI, vs *vacation.ServiceVacation
 			sendNewMessage(fmt.Sprintf("Что-то пошло не так: %s", r), bot, update)
 		}
 	}()
+
+	// движемся дальше только если бота тегнули в сообщении
+	if update.Message == nil || !strings.Contains(update.Message.Text, bot.Self.UserName) {
+		return
+	}
 
 	// Проверяем доступ пользователя
 	if !access.HasAccess(update.Message.From.ID) {
@@ -105,11 +106,6 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI, vs *vacation.ServiceVacation
 	// Обработка команд
 	if update.Message.IsCommand() {
 		handleDefaultCommands(update, bot, vs)
-		return
-	}
-
-	// движемся дальше только если бота тегнули в сообщении
-	if update.Message == nil || !strings.Contains(update.Message.Text, bot.Self.UserName) {
 		return
 	}
 

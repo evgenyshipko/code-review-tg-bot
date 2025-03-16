@@ -7,12 +7,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"math/rand"
 	"os"
 	"slices"
 	"strconv"
-
-	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"sync"
 )
 
 type ReviewerIds map[string]int64
@@ -37,6 +37,11 @@ func NewReviewersService(storage storage.Storage, vacationService *vacation.Serv
 	}
 }
 
+type ChatMemberChanData struct {
+	err        error
+	chatMember tg.ChatMember
+}
+
 // TODO: тяжелая функция, тоже можно мемоизовать, НО! с инвалидацией по времени, т.к. может изменяться список учстников
 func getChatMembers(chatId int64, getChatMember GetChatMemberType) ([]tg.ChatMember, error) {
 
@@ -50,27 +55,53 @@ func getChatMembers(chatId int64, getChatMember GetChatMemberType) ([]tg.ChatMem
 	}
 
 	members := []tg.ChatMember{}
+	mu := sync.Mutex{}
 
-	// RND: распараллелить
+	var wg sync.WaitGroup
+	chatMemberChan := make(chan ChatMemberChanData, 10)
+
 	for _, reviewerId := range reviewerIdsMap {
-		member, err := getChatMember(tg.GetChatMemberConfig{
-			ChatConfigWithUser: tg.ChatConfigWithUser{
-				ChatID: chatId,
-				UserID: reviewerId,
-			},
-		})
-		if err != nil {
-			// здесь обычно происходит ошибка когда мы пытаемся запросить пользователя, которого в чате нет
-			// это нормальная ситуация - пропускаем
-			errStr := fmt.Sprintf("%s chatId:%d, userId: %d", err.Error(), chatId, reviewerId)
-			logger.Instance.Debug(errStr)
-			continue
-		}
+		wg.Add(1) // Увеличиваем счетчик горутин
 
-		if slices.Contains([]string{"creator", "member", "administrator"}, member.Status) {
-			members = append(members, member)
-		}
+		go func(userId int64) {
+			defer wg.Done() // Уменьшаем счетчик при завершении
+
+			member, err := getChatMember(tg.GetChatMemberConfig{
+				ChatConfigWithUser: tg.ChatConfigWithUser{
+					ChatID: chatId,
+					UserID: userId,
+				},
+			})
+
+			chatMemberChan <- ChatMemberChanData{err: err, chatMember: member}
+
+		}(reviewerId)
+
 	}
+
+	// Закрытие канала после завершения всех горутин
+	go func() {
+		wg.Wait()             // Ждём завершения всех горутин
+		close(chatMemberChan) // Закрываем канал
+	}()
+
+	func() {
+		for chatMember := range chatMemberChan {
+			if chatMember.err != nil {
+				// здесь обычно происходит ошибка когда мы пытаемся запросить пользователя, которого в чате нет
+				// это нормальная ситуация - пропускаем
+				// TODO: если не такая ошибка (например ошибка сети) - надо бы что-то другое предпринять
+				logger.Instance.Debugw("getChatMember", "chatId", chatId, "err", err)
+				continue
+			}
+
+			if slices.Contains([]string{"creator", "member", "administrator"}, chatMember.chatMember.Status) {
+				mu.Lock()
+				members = append(members, chatMember.chatMember)
+				mu.Unlock()
+			}
+		}
+	}()
 
 	if len(members) == 0 {
 		return []tg.ChatMember{}, fmt.Errorf("Список участников чата пустой")
@@ -105,6 +136,7 @@ func (s *ReviewersService) GetReviewers(chatId int64, authorId int64, reviewerCo
 	if err != nil {
 		return []tg.ChatMember{}, err
 	}
+
 	// usedMembersType - те юзеры, которых не рассматриваем на ревью
 	usedMemberIds := *s.getChatUsedReviewersData(chatId)
 
