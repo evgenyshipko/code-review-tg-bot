@@ -25,12 +25,12 @@ func (s *ServiceVacation) createUsersKeyboard(users map[string]int64) tg.ReplyKe
 	// Добавляем кнопку отмены только если есть пользователи
 	if len(rows) > 0 {
 		rows = append(rows, []tg.KeyboardButton{
-			tg.NewKeyboardButton(ButtonCancel),
+			tg.NewKeyboardButton(ButtonTextConstants.Cancel),
 		})
 	} else {
 		// Если нет доступных пользователей, показываем только кнопку отмены
 		rows = append(rows, []tg.KeyboardButton{
-			tg.NewKeyboardButton(ButtonCancel),
+			tg.NewKeyboardButton(ButtonTextConstants.Cancel),
 		})
 	}
 
@@ -57,7 +57,7 @@ func (s *ServiceVacation) createDateKeyboard(dates []string) tg.ReplyKeyboardMar
 
 	// Добавляем кнопку отмены в последний ряд
 	rows = append(rows, []tg.KeyboardButton{
-		tg.NewKeyboardButton(ButtonCancel),
+		tg.NewKeyboardButton(ButtonTextConstants.Cancel),
 	})
 
 	keyboard := tg.NewReplyKeyboard(rows...)
@@ -81,15 +81,15 @@ func (s *ServiceVacation) createVacationsListKeyboard() ([][]tg.KeyboardButton, 
 			// Добавляем две кнопки для каждого пользователя
 			buttons = append(buttons,
 				[]tg.KeyboardButton{
-					tg.NewKeyboardButton(fmt.Sprintf("%s %s", ButtonReturnFromVacation, userName)),
-					tg.NewKeyboardButton(fmt.Sprintf("%s %s", ButtonChangeVacation, userName)),
+					tg.NewKeyboardButton(fmt.Sprintf("%s %s", ButtonTextConstants.ReturnFromVacation, userName)),
+					tg.NewKeyboardButton(fmt.Sprintf("%s %s", ButtonTextConstants.ChangeVacation, userName)),
 				},
 			)
 		}
 	}
 
 	if len(buttons) > 0 {
-		buttons = append(buttons, []tg.KeyboardButton{tg.NewKeyboardButton(ButtonCancel)})
+		buttons = append(buttons, []tg.KeyboardButton{tg.NewKeyboardButton(ButtonTextConstants.Cancel)})
 	}
 
 	return buttons, nil
@@ -103,9 +103,9 @@ func (s *ServiceVacation) GetDefaultKeyboard(userId int64) tg.ReplyKeyboardMarku
 	if access.HasVacationAccess(userId) {
 
 		if s.IsUserOnVacation(userId) {
-			defaultButtons = append(defaultButtons, tg.NewKeyboardButton(ButtonReturnToWork))
+			defaultButtons = append(defaultButtons, tg.NewKeyboardButton(ButtonTextConstants.ReturnToWork))
 		} else {
-			defaultButtons = append(defaultButtons, tg.NewKeyboardButton(ButtonTakeVacation))
+			defaultButtons = append(defaultButtons, tg.NewKeyboardButton(ButtonTextConstants.TakeVacation))
 		}
 	}
 
@@ -118,7 +118,7 @@ func (s *ServiceVacation) GetDefaultKeyboard(userId int64) tg.ReplyKeyboardMarku
 
 	keyboard := tg.NewReplyKeyboard(
 		tg.NewKeyboardButtonRow(defaultButtons...),
-		tg.NewKeyboardButtonRow(tg.NewKeyboardButton(ButtonCancel)),
+		tg.NewKeyboardButtonRow(tg.NewKeyboardButton(ButtonTextConstants.Cancel)),
 	)
 	keyboard.Selective = true
 	return keyboard

@@ -9,10 +9,11 @@ import (
 	"code-review-tg-bot/internal/utils"
 	"code-review-tg-bot/internal/vacation"
 	"fmt"
-	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"github.com/joho/godotenv"
 	"os"
 	"strings"
+
+	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/joho/godotenv"
 )
 
 // initialized before main call
@@ -87,14 +88,10 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI, vs *vacation.ServiceVacation
 		}
 	}()
 
-	// движемся дальше только если бота тегнули в сообщении
-	if update.Message == nil || !strings.Contains(update.Message.Text, bot.Self.UserName) {
-		return
-	}
-
 	// Проверяем доступ пользователя
-	if !access.HasAccess(update.Message.From.ID) {
+	if !access.HasAccess(*update.Message, *bot, vacation.ButtonTextConstants.GetSlice()) {
 		sendNewMessage(access.GetAccessDeniedMessage(update.Message.From.UserName), bot, update)
+
 		return
 	}
 
@@ -106,6 +103,11 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI, vs *vacation.ServiceVacation
 	// Обработка команд
 	if update.Message.IsCommand() {
 		handleDefaultCommands(update, bot, vs)
+		return
+	}
+
+	// движемся дальше только если бота тегнули в сообщении
+	if update.Message == nil || !strings.Contains(update.Message.Text, bot.Self.UserName) {
 		return
 	}
 

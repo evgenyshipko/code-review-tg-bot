@@ -15,7 +15,7 @@ func (s *ServiceVacation) HandleAdminPanel(update tg.Update, bot *tg.BotAPI, sta
 	// Сбрасываем состояние пользователя при работе с админ-панелью
 	s.ResetAllStates(update.Message.From.ID)
 
-	if update.Message.Text == ButtonCancel {
+	if update.Message.Text == ButtonTextConstants.Cancel {
 		// Сбрасываем состояние админ-панели
 		s.resetAdminState(update.Message.From.ID)
 
@@ -86,7 +86,7 @@ func (s *ServiceVacation) handleAdminPickUser(update tg.Update, bot *tg.BotAPI, 
 // Обрабатывает действия в админ-панели
 func (s *ServiceVacation) handleAdminActionsForUser(update tg.Update, bot *tg.BotAPI, state AdminPanelState) {
 	switch update.Message.Text {
-	case ButtonTakeVacation, ButtonChangeVacation:
+	case ButtonTextConstants.TakeVacation, ButtonTextConstants.ChangeVacation:
 		// Показываем календарь
 		dates := s.generateVacationDates()
 		keyboard := s.createDateKeyboard(dates)
@@ -101,7 +101,7 @@ func (s *ServiceVacation) handleAdminActionsForUser(update tg.Update, bot *tg.Bo
 
 		bot.Send(msg)
 
-	case ButtonReturnToWork:
+	case ButtonTextConstants.ReturnToWork:
 		// Проверяем, находится ли пользователь в отпуске
 		if !s.IsUserOnVacation(update.Message.From.ID) {
 			msg := tg.NewMessage(update.Message.Chat.ID, "Пользователь не находится в отпуске")

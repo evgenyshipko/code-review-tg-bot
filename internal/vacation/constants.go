@@ -1,15 +1,37 @@
 package vacation
 
+type ButtonText struct {
+	TakeVacation       string
+	ReturnFromVacation string
+	ChangeVacation     string
+	ReturnToWork       string
+	Cancel             string
+	VacationsList      string
+	VacationsStart     string
+}
+
 // Константы для текста кнопок
-const (
-	ButtonTakeVacation       = "🏃 Оформить отпуск"
-	ButtonReturnFromVacation = "🔄 Вернуть из отпуска:"
-	ButtonChangeVacation     = "📅 Изменить отпуск:"
-	ButtonReturnToWork       = "💼 Выход на работу"
-	ButtonCancel             = "❌ Закрыть"
-	ButtonVacationsList      = "📋 Список отпусков"
-	ButtonVacationsStart     = "➕ Отправить в отпуск"
-)
+var ButtonTextConstants = ButtonText{
+	TakeVacation:       "🏃 Оформить отпуск",
+	ReturnFromVacation: "🔄 Вернуть из отпуска:",
+	ChangeVacation:     "📅 Изменить отпуск:",
+	ReturnToWork:       "💼 Выход на работу",
+	Cancel:             "❌ Закрыть",
+	VacationsList:      "📋 Список отпусков",
+	VacationsStart:     "➕ Отправить в отпуск",
+}
+
+func (b ButtonText) GetSlice() []string {
+	return []string{
+		b.TakeVacation,
+		b.ReturnFromVacation,
+		b.ChangeVacation,
+		b.ReturnToWork,
+		b.Cancel,
+		b.VacationsList,
+		b.VacationsStart,
+	}
+}
 
 // Константы состояний админ-панели
 const (

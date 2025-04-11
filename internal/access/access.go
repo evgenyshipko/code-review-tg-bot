@@ -2,15 +2,19 @@ package access
 
 import (
 	"code-review-tg-bot/internal/logger"
+
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
+
+	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 type UserIds map[string]int64
 
 // Проверяет, имеет ли пользователь с указанным ID доступ к боту
-func HasAccess(userId int64) bool {
+func HasAccess(msg tg.Message, botApi tg.BotAPI, buttonFromKeyboard []string) bool {
 	reviewersIdsMap, err := parseUserIds("REVIEW_PARTICIPANTS_IDS")
 	if err != nil {
 		logger.Instance.Error("Ошибка при парсинге списка ревьюеров", "error", err)
@@ -22,8 +26,27 @@ func HasAccess(userId int64) bool {
 		logger.Instance.Error("Ошибка при парсинге списка администраторов", "error", err)
 		return false
 	}
+	accessByRole := isUserInMap(msg.From.ID, reviewersIdsMap) || isUserInMap(msg.From.ID, adminsIdsMap)
 
-	return isUserInMap(userId, reviewersIdsMap) || isUserInMap(userId, adminsIdsMap)
+	if !accessByRole {
+		if msg.IsCommand() {
+			return false
+		}
+
+		if strings.Contains(msg.Text, botApi.Self.UserName) {
+			return false
+		}
+
+		for _, btnText := range buttonFromKeyboard {
+			if strings.Contains(msg.Text, btnText) {
+				return false
+			}
+
+		}
+	}
+
+	// Если обычное сообщение, не связанно с ботом
+	return true
 }
 
 // Парсит список пользователей из .env
