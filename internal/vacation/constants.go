@@ -21,15 +21,15 @@ var ButtonTextConstants = ButtonText{
 	VacationsStart:     "➕ Отправить в отпуск",
 }
 
-func (b ButtonText) GetSlice() []string {
-	return []string{
-		b.TakeVacation,
-		b.ReturnFromVacation,
-		b.ChangeVacation,
-		b.ReturnToWork,
-		b.Cancel,
-		b.VacationsList,
-		b.VacationsStart,
+func (b ButtonText) GetHashMap() map[string]bool {
+	return map[string]bool{
+		b.TakeVacation:       true,
+		b.ReturnFromVacation: true,
+		b.ChangeVacation:     true,
+		b.ReturnToWork:       true,
+		b.Cancel:             true,
+		b.VacationsList:      true,
+		b.VacationsStart:     true,
 	}
 }
 

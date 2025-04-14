@@ -89,7 +89,7 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI, vs *vacation.ServiceVacation
 	}()
 
 	// Проверяем доступ пользователя
-	if !access.HasAccess(*update.Message, *bot, vacation.ButtonTextConstants.GetSlice()) {
+	if !access.HasAccess(*update.Message, *bot, vacation.ButtonTextConstants.GetHashMap()) {
 		sendNewMessage(access.GetAccessDeniedMessage(update.Message.From.UserName), bot, update)
 
 		return

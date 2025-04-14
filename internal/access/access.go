@@ -14,7 +14,7 @@ import (
 type UserIds map[string]int64
 
 // Проверяет, имеет ли пользователь с указанным ID доступ к боту
-func HasAccess(msg tg.Message, botApi tg.BotAPI, buttonFromKeyboard []string) bool {
+func HasAccess(msg tg.Message, botApi tg.BotAPI, buttonFromKeyboardHash map[string]bool) bool {
 	reviewersIdsMap, err := parseUserIds("REVIEW_PARTICIPANTS_IDS")
 	if err != nil {
 		logger.Instance.Error("Ошибка при парсинге списка ревьюеров", "error", err)
@@ -36,13 +36,10 @@ func HasAccess(msg tg.Message, botApi tg.BotAPI, buttonFromKeyboard []string) bo
 		if strings.Contains(msg.Text, botApi.Self.UserName) {
 			return false
 		}
-
-		for _, btnText := range buttonFromKeyboard {
-			if strings.Contains(msg.Text, btnText) {
-				return false
-			}
-
+		if buttonFromKeyboardHash[msg.Text] {
+			return false
 		}
+
 	}
 
 	// Если обычное сообщение, не связанно с ботом
