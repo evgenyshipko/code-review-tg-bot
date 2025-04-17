@@ -31,6 +31,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Инициализация списков пользователей
+	if err := access.InitUserMaps(); err != nil {
+		logger.Instance.Errorw("Ошибка инициализации списков пользователей", "error", err)
+		os.Exit(1)
+	}
+
 	// Получение последнего коммита
 	hash, message, err := utils.GetLastCommitInfo()
 	if err != nil {
@@ -88,11 +94,23 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI, vs *vacation.ServiceVacation
 		}
 	}()
 
-	// Проверяем доступ пользователя
-	if !access.HasAccess(*update.Message, *bot, vacation.ButtonTextConstants.GetHashMap()) {
-		sendNewMessage(access.GetAccessDeniedMessage(update.Message.From.UserName), bot, update)
+	// Проверяем доступ пользователя по его роли
+	role, err := access.HasAccessByRole(*update.Message)
 
+	if err != nil {
+		logger.Instance.Error(err.Error())
+		sendNewMessage("Что-то пошло не так: "+err.Error(), bot, update)
 		return
+	}
+
+	if role == access.NotAccessRole {
+		isAllowedMessage := update.Message.IsCommand() ||
+			strings.Contains(update.Message.Text, bot.Self.UserName) ||
+			vacation.ButtonTextConstants.GetHashMap()[update.Message.Text]
+
+		if !isAllowedMessage {
+			return
+		}
 	}
 
 	// Обработка отпусков

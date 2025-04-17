@@ -4,131 +4,92 @@ import (
 	"code-review-tg-bot/internal/logger"
 
 	"encoding/json"
-	"fmt"
 	"os"
-	"strings"
 
 	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-type UserIds map[string]int64
+type UserIds map[int64]string
+type Role string
 
-// Проверяет, имеет ли пользователь с указанным ID доступ к боту
-func HasAccess(msg tg.Message, botApi tg.BotAPI, buttonFromKeyboardHash map[string]bool) bool {
-	reviewersIdsMap, err := parseUserIds("REVIEW_PARTICIPANTS_IDS")
+const (
+	AccessRole    Role = "accessRole"
+	NotAccessRole Role = "notAccessRole"
+)
+
+var (
+	ReviewersIdsMap UserIds
+	AdminsIdsMap    UserIds
+	TestersIdsMap   UserIds
+)
+
+func InitUserMaps() error {
+	var err error
+
+	ReviewersIdsMap, err = ParseUserIds("REVIEW_PARTICIPANTS_IDS")
 	if err != nil {
 		logger.Instance.Error("Ошибка при парсинге списка ревьюеров", "error", err)
-		return false
+		return err
 	}
 
-	adminsIdsMap, err := parseUserIds("ADMINS_IDS")
+	AdminsIdsMap, err = ParseUserIds("ADMINS_IDS")
 	if err != nil {
 		logger.Instance.Error("Ошибка при парсинге списка администраторов", "error", err)
-		return false
-	}
-	accessByRole := isUserInMap(msg.From.ID, reviewersIdsMap) || isUserInMap(msg.From.ID, adminsIdsMap)
-
-	if !accessByRole {
-		if msg.IsCommand() {
-			return false
-		}
-
-		if strings.Contains(msg.Text, botApi.Self.UserName) {
-			return false
-		}
-		if buttonFromKeyboardHash[msg.Text] {
-			return false
-		}
-
+		return err
 	}
 
-	// Если обычное сообщение, не связанно с ботом
-	return true
-}
-
-// Парсит список пользователей из .env
-func parseUserIds(envName string) (UserIds, error) {
-	var userIds UserIds
-	err := json.Unmarshal([]byte(os.Getenv(envName)), &userIds)
-
-	return userIds, err
-}
-
-// Проверяет, есть ли пользователь в мапе
-func isUserInMap(userId int64, userMap UserIds) bool {
-	for _, id := range userMap {
-		if id == userId {
-			return true
-		}
+	TestersIdsMap, err = ParseUserIds("TESTERS_IDS")
+	if err != nil {
+		logger.Instance.Error("Ошибка при парсинге списка тестировщиков", "error", err)
+		return err
 	}
-	return false
+
+	return nil
 }
 
-// Формирует сообщение об отказе в доступе
-func GetAccessDeniedMessage(username string) string {
-	return fmt.Sprintf("@%s у вас нет доступа к этому боту", username)
+func HasAccessByRole(msg tg.Message) (Role, error) {
+	if isUserInMap(msg.From.ID, ReviewersIdsMap) || isUserInMap(msg.From.ID, AdminsIdsMap) {
+		return AccessRole, nil
+	}
+	return NotAccessRole, nil
 }
 
-// ParseUserIds парсит список пользователей из .env
 func ParseUserIds(envName string) (UserIds, error) {
-	var userIds UserIds
-	err := json.Unmarshal([]byte(os.Getenv(envName)), &userIds)
-
-	return userIds, err
-}
-
-// IsUserInMap проверяет, есть ли пользователь в мапе
-func IsUserInMap(userId int64, userMap UserIds) bool {
-	for _, id := range userMap {
-		if id == userId {
-			return true
-		}
+	var tempUserIds map[string]int64
+	err := json.Unmarshal([]byte(os.Getenv(envName)), &tempUserIds)
+	if err != nil {
+		return nil, err
 	}
-	return false
+
+	userIds := make(UserIds)
+	for name, id := range tempUserIds {
+		userIds[id] = name
+	}
+
+	return userIds, nil
 }
 
-// Проверяет, является ли пользователь администратором
+func isUserInMap(userId int64, userMap UserIds) bool {
+	_, exists := userMap[userId]
+	return exists
+}
+
 func IsAdmin(userID int64) bool {
-	adminsIdsMap, err := ParseUserIds("ADMINS_IDS")
-	if err != nil {
-		logger.Instance.Error("Ошибка при парсинге списка администраторов", "error", err)
-		return false
-	}
-
-	return IsUserInMap(userID, adminsIdsMap)
+	return isUserInMap(userID, AdminsIdsMap)
 }
 
-// Проверяет, является ли пользователь ревьюером
 func IsReviewer(userId int64) bool {
-	reviewers, err := ParseUserIds("REVIEW_PARTICIPANTS_IDS")
-	if err != nil {
-		return false
-	}
-
-	for _, id := range reviewers {
-		if id == userId {
-			return true
-		}
-	}
-	return false
+	return isUserInMap(userId, ReviewersIdsMap)
 }
 
-// Проверяет, имеет ли пользователь доступ к функциям отпуска
 func HasVacationAccess(userId int64) bool {
 	return IsReviewer(userId)
 }
 
-// Проверяет, имеет ли пользователь доступ к админ-функциям
 func HasAdminAccess(userId int64) bool {
 	return IsAdmin(userId)
 }
 
-// Проверяет, является ли пользователь тестировщиком
 func IsTester(userId int64) bool {
-	testers, err := ParseUserIds("TESTERS_IDS")
-	if err != nil {
-		return false
-	}
-
-	return IsUserInMap(userId, testers)
+	return isUserInMap(userId, TestersIdsMap)
 }

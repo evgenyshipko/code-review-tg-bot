@@ -51,7 +51,7 @@ func (s *ServiceVacation) handleAdminPickUser(update tg.Update, bot *tg.BotAPI, 
 
 		// Получаем ID выбранного пользователя
 		var selectedUserId int64
-		for userNameFromEnv, uid := range allUsers {
+		for uid, userNameFromEnv := range allUsers {
 
 			if userNameFromEnv == selectedFullName {
 				selectedUserId = uid
@@ -120,7 +120,7 @@ func (s *ServiceVacation) handleAdminActionsForUser(update tg.Update, bot *tg.Bo
 
 		// Ищем имя пользователя по ID
 		var username string
-		for userNameFromEnv, uid := range allUsers {
+		for uid, userNameFromEnv := range allUsers {
 			if uid == state.SelectedUID {
 
 				username = userNameFromEnv
@@ -179,7 +179,7 @@ func (s *ServiceVacation) handleAdminSetVacation(update tg.Update, bot *tg.BotAP
 
 	// Поиск имени пользователя
 	var username string
-	for userNameFromEnv, uid := range allUsers {
+	for uid, userNameFromEnv := range allUsers {
 		if uid == state.SelectedUID {
 
 			username = userNameFromEnv

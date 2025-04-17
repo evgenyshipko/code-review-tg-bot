@@ -20,7 +20,7 @@ func (s *ServiceVacation) GetVacationsList(update tg.Update) (string, error) {
 	}
 
 	// Проверяем статус отпуска для каждого пользователя
-	for userNameFromEnv, userId := range allUsers {
+	for userId, userNameFromEnv := range allUsers {
 		if s.IsUserOnVacation(userId) {
 			returnDate := s.getVacationReturnDate(userId)
 			message += fmt.Sprintf("%s - до %s\n",
@@ -58,8 +58,7 @@ func (s *ServiceVacation) GetCommands() []tg.BotCommand {
 		},
 	}
 
-	testers, err := access.ParseUserIds("TESTERS_IDS")
-	if err == nil && len(testers) > 0 {
+	if len(access.TestersIdsMap) > 0 {
 		commands = append(commands, tg.BotCommand{
 			Command:     test_vacation,
 			Description: "Уйти в отпуск на 1 минуту (тестовый режим)",

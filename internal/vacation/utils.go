@@ -1,13 +1,14 @@
 package vacation
 
 import (
+	"code-review-tg-bot/internal/access"
 	"strings"
 )
 
-func (s *ServiceVacation) findUserIdByName(users map[string]int64, userName string) int64 {
+func (s *ServiceVacation) findUserIdByName(users access.UserIds, userName string) int64 {
 	userName = strings.TrimSpace(userName)
 
-	for userNameFromEnv, userId := range users {
+	for userId, userNameFromEnv := range users {
 		if s.IsUserOnVacation(userId) {
 
 			fullName := strings.TrimSpace(userNameFromEnv)

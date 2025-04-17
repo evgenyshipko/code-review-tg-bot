@@ -8,10 +8,10 @@ import (
 )
 
 // createUsersKeyboard создает клавиатуру со списком пользователей
-func (s *ServiceVacation) createUsersKeyboard(users map[string]int64) tg.ReplyKeyboardMarkup {
+func (s *ServiceVacation) createUsersKeyboard(users access.UserIds) tg.ReplyKeyboardMarkup {
 	var rows [][]tg.KeyboardButton
 
-	for userNameFromEnv, userId := range users {
+	for userId, userNameFromEnv := range users {
 		// Пропускаем пользователей, которые уже в отпуске
 		if s.IsUserOnVacation(userId) {
 			continue
@@ -75,7 +75,7 @@ func (s *ServiceVacation) createVacationsListKeyboard() ([][]tg.KeyboardButton, 
 	}
 
 	// Проверяем статус отпуска для каждого пользователя
-	for userName, userId := range allUsers {
+	for userId, userName := range allUsers {
 		if s.IsUserOnVacation(userId) {
 
 			// Добавляем две кнопки для каждого пользователя
