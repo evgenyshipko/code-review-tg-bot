@@ -10,7 +10,7 @@ const (
 )
 
 // GenerateVacationDates генерирует список дат для выбора даты выхода на работу
-func (s *ServiceVacation) generateVacationDates() []string {
+func (s *VacationService) generateVacationDates() []string {
 	var dates []string
 	tomorrow := s.getTomorrow()
 
@@ -23,13 +23,13 @@ func (s *ServiceVacation) generateVacationDates() []string {
 }
 
 // IsDateFormat проверяет, является ли текст датой в валидном формате
-func (s *ServiceVacation) isDateFormat(text string) bool {
+func (s *VacationService) isDateFormat(text string) bool {
 	_, err := time.Parse(DateFormatLayout, text)
 	return err == nil
 }
 
 // IsValidVacationDate проверяет, что дата не раньше завтрашнего дня и не позже чем через 3 недели
-func (s *ServiceVacation) isValidVacationDate(date time.Time) bool {
+func (s *VacationService) isValidVacationDate(date time.Time) bool {
 	tomorrow := s.getTomorrow()
 	maxDate := s.getMaxVacationDate()
 
@@ -37,13 +37,13 @@ func (s *ServiceVacation) isValidVacationDate(date time.Time) bool {
 }
 
 // GetTomorrow возвращает дату на завтра (начало дня)
-func (s *ServiceVacation) getTomorrow() time.Time {
+func (s *VacationService) getTomorrow() time.Time {
 	tomorrow := time.Now().AddDate(0, 0, 1)
 	return time.Date(tomorrow.Year(), tomorrow.Month(), tomorrow.Day(), 0, 0, 0, 0, tomorrow.Location())
 }
 
 // GetMaxVacationDate возвращает макgсимально допустимую дату для выхода из отпуска
-func (s *ServiceVacation) getMaxVacationDate() time.Time {
+func (s *VacationService) getMaxVacationDate() time.Time {
 	maxDate := time.Now().AddDate(0, 0, VacationLimitDays+1) // VacationLimitDays дней + 1 сегодня
 	return time.Date(maxDate.Year(), maxDate.Month(), maxDate.Day(), 0, 0, 0, 0, maxDate.Location())
 }

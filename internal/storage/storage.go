@@ -2,9 +2,7 @@ package storage
 
 import (
 	"code-review-tg-bot/internal/logger"
-	"code-review-tg-bot/internal/memoryStorage"
 	"code-review-tg-bot/internal/redis"
-	"code-review-tg-bot/internal/redisStorage"
 	"os"
 	"time"
 )
@@ -24,7 +22,7 @@ func InitStorage() (Storage, error) {
 	if redisHost == "" && redisPort == "" {
 		logger.Instance.Debug("Ошибка инициализации Redis, используется Memory")
 
-		return memoryStorage.NewMemoryStorage(), nil
+		return NewMemoryStorage(), nil
 	}
 
 	err = redis.Init()
@@ -35,6 +33,6 @@ func InitStorage() (Storage, error) {
 	}
 
 	logger.Instance.Info("Успешная инициализации Redis")
-	return redisStorage.NewRedisStorage(redis.GetClient()), nil
+	return NewRedisStorage(redis.GetClient()), nil
 
 }

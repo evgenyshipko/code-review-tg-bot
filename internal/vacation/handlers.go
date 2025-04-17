@@ -1,26 +1,20 @@
 package vacation
 
 import (
-	"code-review-tg-bot/internal/access"
 	"fmt"
 	"time"
 
 	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-// Возвращает список пользователей в отпуске, доступно только админам
-func (s *ServiceVacation) GetVacationsList(update tg.Update) (string, error) {
+func (s *VacationService) GetVacationsList() (string, error) {
 	message := "Сотрудники в отпуске:\n\n"
 	hasVacations := false
 
-	// Получаем всех пользователей из env
-	allUsers, err := access.ParseUserIds("REVIEW_PARTICIPANTS_IDS")
-	if err != nil {
-		return "", fmt.Errorf("ошибка при парсинге списка пользователей: %w", err)
-	}
+	reviewers := s.usersMap.ReviewersIdsMap
 
 	// Проверяем статус отпуска для каждого пользователя
-	for userId, userNameFromEnv := range allUsers {
+	for userId, userNameFromEnv := range reviewers {
 		if s.IsUserOnVacation(userId) {
 			returnDate := s.getVacationReturnDate(userId)
 			message += fmt.Sprintf("%s - до %s\n",
@@ -38,7 +32,7 @@ func (s *ServiceVacation) GetVacationsList(update tg.Update) (string, error) {
 }
 
 // Возвращает список команд, связанных с отпусками
-func (s *ServiceVacation) GetCommands() []tg.BotCommand {
+func (s *VacationService) GetCommands() []tg.BotCommand {
 	commands := []tg.BotCommand{
 		{
 			Command:     rest,
@@ -58,7 +52,7 @@ func (s *ServiceVacation) GetCommands() []tg.BotCommand {
 		},
 	}
 
-	if len(access.TestersIdsMap) > 0 {
+	if len(s.usersMap.TestersIdsMap) > 0 {
 		commands = append(commands, tg.BotCommand{
 			Command:     test_vacation,
 			Description: "Уйти в отпуск на 1 минуту (тестовый режим)",
@@ -69,7 +63,7 @@ func (s *ServiceVacation) GetCommands() []tg.BotCommand {
 }
 
 // Сохраняет статус отпуска пользователя с TTL
-func (s *ServiceVacation) startVacation(userId int64, returnDate time.Time) error {
+func (s *VacationService) startVacation(userId int64, returnDate time.Time) error {
 	now := time.Now()
 
 	// Для обычного отпуска обнуляем время
@@ -86,12 +80,12 @@ func (s *ServiceVacation) startVacation(userId int64, returnDate time.Time) erro
 	return s.storage.SetWithTTL(fmt.Sprintf("vacation_%d", userId), returnDate, ttl)
 }
 
-func (s *ServiceVacation) endVacation(userId int64) {
+func (s *VacationService) endVacation(userId int64) {
 	s.storage.Delete(fmt.Sprintf("vacation_%d", userId))
 }
 
 // Все входящие обновления
-func (s *ServiceVacation) HandleUpdate(update tg.Update, bot *tg.BotAPI) bool {
+func (s *VacationService) HandleUpdate(update tg.Update, bot *tg.BotAPI) bool {
 
 	handlers := []func(tg.Update, *tg.BotAPI) (executed bool){
 		s.handleAdminUpdate,
@@ -109,7 +103,7 @@ func (s *ServiceVacation) HandleUpdate(update tg.Update, bot *tg.BotAPI) bool {
 	return false
 }
 
-func (s *ServiceVacation) handleAdminUpdate(update tg.Update, bot *tg.BotAPI) (executed bool) {
+func (s *VacationService) handleAdminUpdate(update tg.Update, bot *tg.BotAPI) (executed bool) {
 
 	if update.Message != nil {
 		var adminState AdminPanelState

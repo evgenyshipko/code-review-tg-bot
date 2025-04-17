@@ -1,4 +1,4 @@
-package memoryStorage
+package storage
 
 import (
 	"encoding/json"
