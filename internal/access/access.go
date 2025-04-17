@@ -2,7 +2,6 @@ package access
 
 import (
 	"code-review-tg-bot/internal/logger"
-
 	"encoding/json"
 	"os"
 
@@ -12,46 +11,42 @@ import (
 type UserIds map[int64]string
 type Role string
 
-const (
-	AccessRole    Role = "accessRole"
-	NotAccessRole Role = "notAccessRole"
-)
-
-var (
+type UserMaps struct {
 	ReviewersIdsMap UserIds
 	AdminsIdsMap    UserIds
 	TestersIdsMap   UserIds
-)
-
-func InitUserMaps() error {
-	var err error
-
-	ReviewersIdsMap, err = ParseUserIds("REVIEW_PARTICIPANTS_IDS")
-	if err != nil {
-		logger.Instance.Error("Ошибка при парсинге списка ревьюеров", "error", err)
-		return err
-	}
-
-	AdminsIdsMap, err = ParseUserIds("ADMINS_IDS")
-	if err != nil {
-		logger.Instance.Error("Ошибка при парсинге списка администраторов", "error", err)
-		return err
-	}
-
-	TestersIdsMap, err = ParseUserIds("TESTERS_IDS")
-	if err != nil {
-		logger.Instance.Error("Ошибка при парсинге списка тестировщиков", "error", err)
-		return err
-	}
-
-	return nil
 }
 
-func HasAccessByRole(msg tg.Message) (Role, error) {
-	if isUserInMap(msg.From.ID, ReviewersIdsMap) || isUserInMap(msg.From.ID, AdminsIdsMap) {
-		return AccessRole, nil
+func InitUserMaps() (*UserMaps, error) {
+	var err error
+
+	ReviewersIdsMap, err := ParseUserIds("REVIEW_PARTICIPANTS_IDS")
+	if err != nil {
+		logger.Instance.Error("Ошибка при парсинге списка ревьюеров", "error", err)
+		return nil, err
 	}
-	return NotAccessRole, nil
+
+	AdminsIdsMap, err := ParseUserIds("ADMINS_IDS")
+	if err != nil {
+		logger.Instance.Error("Ошибка при парсинге списка администраторов", "error", err)
+		return nil, err
+	}
+
+	TestersIdsMap, err := ParseUserIds("TESTERS_IDS")
+	if err != nil {
+		logger.Instance.Error("Ошибка при парсинге списка тестировщиков", "error", err)
+		return nil, err
+	}
+
+	return &UserMaps{
+		ReviewersIdsMap: ReviewersIdsMap,
+		AdminsIdsMap:    AdminsIdsMap,
+		TestersIdsMap:   TestersIdsMap,
+	}, nil
+}
+
+func IsUserHasAccess(msg tg.Message, userMaps *UserMaps) bool {
+	return isUserInMap(msg.From.ID, userMaps.ReviewersIdsMap) || isUserInMap(msg.From.ID, userMaps.AdminsIdsMap)
 }
 
 func ParseUserIds(envName string) (UserIds, error) {
@@ -74,22 +69,22 @@ func isUserInMap(userId int64, userMap UserIds) bool {
 	return exists
 }
 
-func IsAdmin(userID int64) bool {
-	return isUserInMap(userID, AdminsIdsMap)
+func IsAdmin(userID int64, maps UserMaps) bool {
+	return isUserInMap(userID, maps.AdminsIdsMap)
 }
 
-func IsReviewer(userId int64) bool {
-	return isUserInMap(userId, ReviewersIdsMap)
+func IsReviewer(userId int64, maps UserMaps) bool {
+	return isUserInMap(userId, maps.ReviewersIdsMap)
 }
 
-func HasVacationAccess(userId int64) bool {
-	return IsReviewer(userId)
+func HasVacationAccess(userId int64, maps UserMaps) bool {
+	return IsReviewer(userId, maps)
 }
 
-func HasAdminAccess(userId int64) bool {
-	return IsAdmin(userId)
+func HasAdminAccess(userId int64, maps UserMaps) bool {
+	return IsAdmin(userId, maps)
 }
 
-func IsTester(userId int64) bool {
-	return isUserInMap(userId, TestersIdsMap)
+func IsTester(userId int64, maps UserMaps) bool {
+	return isUserInMap(userId, maps.TestersIdsMap)
 }

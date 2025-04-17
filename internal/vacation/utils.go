@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-func (s *ServiceVacation) findUserIdByName(users access.UserIds, userName string) int64 {
+func (s *VacationService) findUserIdByName(users access.UserIds, userName string) int64 {
 	userName = strings.TrimSpace(userName)
 
 	for userId, userNameFromEnv := range users {

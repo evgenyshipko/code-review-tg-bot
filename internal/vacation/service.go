@@ -1,6 +1,7 @@
 package vacation
 
 import (
+	"code-review-tg-bot/internal/access"
 	"code-review-tg-bot/internal/storage"
 	"fmt"
 	"time"
@@ -8,42 +9,44 @@ import (
 	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-type ServiceVacation struct {
-	storage storage.Storage
-	bot     *tg.BotAPI
+type VacationService struct {
+	storage  storage.Storage
+	bot      *tg.BotAPI
+	usersMap *access.UserMaps
 }
 
-func NewService(storage storage.Storage, bot *tg.BotAPI) *ServiceVacation {
-	return &ServiceVacation{
-		storage: storage,
-		bot:     bot,
+func NewVacationService(storage storage.Storage, bot *tg.BotAPI, usersMap *access.UserMaps) *VacationService {
+	return &VacationService{
+		storage:  storage,
+		bot:      bot,
+		usersMap: usersMap,
 	}
 }
 
 // Gроверяет, находится ли пользователь в отпуске
-func (s *ServiceVacation) IsUserOnVacation(userId int64) bool {
+func (s *VacationService) IsUserOnVacation(userId int64) bool {
 	exists := s.storage.Get(fmt.Sprintf("vacation_%d", userId), &time.Time{})
 	return exists
 }
 
 // Cбрасывает состояние пользователя
-func (s *ServiceVacation) resetUserState(userId int64) {
+func (s *VacationService) resetUserState(userId int64) {
 	s.storage.Set(fmt.Sprintf("user_state_%d", userId), UserStateNone)
 }
 
 // Cбрасывает состояние админ-панели
-func (s *ServiceVacation) resetAdminState(userId int64) {
+func (s *VacationService) resetAdminState(userId int64) {
 	s.storage.Set(fmt.Sprintf("admin_state_%d", userId), AdminPanelState{State: AdminStateNone})
 }
 
 // Cбрасывает все состояния пользователя
-func (s *ServiceVacation) ResetAllStates(userId int64) {
+func (s *VacationService) ResetAllStates(userId int64) {
 	s.resetUserState(userId)
 	s.resetAdminState(userId)
 }
 
 // Получает дату возвращения из отпуска
-func (s *ServiceVacation) getVacationReturnDate(userId int64) time.Time {
+func (s *VacationService) getVacationReturnDate(userId int64) time.Time {
 	var returnDate time.Time
 	s.storage.Get(fmt.Sprintf("vacation_%d", userId), &returnDate)
 	return returnDate

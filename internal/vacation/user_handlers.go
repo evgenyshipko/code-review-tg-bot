@@ -11,8 +11,8 @@ import (
 )
 
 // Обрабатывает текстовые команды, связанные с отпуском
-func (s *ServiceVacation) handleTextCommand(update tg.Update, bot *tg.BotAPI) (executed bool) {
-	if !access.HasVacationAccess(update.Message.From.ID) {
+func (s *VacationService) handleTextCommand(update tg.Update, bot *tg.BotAPI) (executed bool) {
+	if !access.HasVacationAccess(update.Message.From.ID, *s.usersMap) {
 		return false
 	}
 
@@ -64,21 +64,21 @@ func (s *ServiceVacation) handleTextCommand(update tg.Update, bot *tg.BotAPI) (e
 }
 
 // Обрабатывает все команды, связанные с отпусками и админ-панелью
-func (s *ServiceVacation) HandleCommand(update tg.Update, bot *tg.BotAPI) (executed bool) {
+func (s *VacationService) HandleCommand(update tg.Update, bot *tg.BotAPI) (executed bool) {
 	if update.Message == nil && !update.Message.IsCommand() {
 		return false
 	}
 
 	switch update.Message.Command() {
 	case test_vacation:
-		if !access.IsTester(update.Message.From.ID) {
+		if !access.IsTester(update.Message.From.ID, *s.usersMap) {
 			msg := tg.NewMessage(update.Message.Chat.ID, "Команда доступна только для тестировщиков")
 			msg.ReplyToMessageID = update.Message.MessageID
 			bot.Send(msg)
 			return true
 		}
 
-		if !access.HasVacationAccess(update.Message.From.ID) {
+		if !access.HasVacationAccess(update.Message.From.ID, *s.usersMap) {
 			msg := tg.NewMessage(update.Message.Chat.ID, "У вас нет доступа к этой команде")
 			msg.ReplyToMessageID = update.Message.MessageID
 			bot.Send(msg)
@@ -114,7 +114,7 @@ func (s *ServiceVacation) HandleCommand(update tg.Update, bot *tg.BotAPI) (execu
 		return true
 
 	case rest, work:
-		if !access.HasVacationAccess(update.Message.From.ID) {
+		if !access.HasVacationAccess(update.Message.From.ID, *s.usersMap) {
 			msg := tg.NewMessage(update.Message.Chat.ID, "У вас нет доступа к этой команде")
 			msg.ReplyToMessageID = update.Message.MessageID
 			bot.Send(msg)
@@ -161,7 +161,7 @@ func (s *ServiceVacation) HandleCommand(update tg.Update, bot *tg.BotAPI) (execu
 			return true
 		}
 	case vacations, vacations_start:
-		if !access.HasAdminAccess(update.Message.From.ID) {
+		if !access.HasAdminAccess(update.Message.From.ID, *s.usersMap) {
 			msg := tg.NewMessage(update.Message.Chat.ID, "У вас нет доступа к этой команде")
 			msg.ReplyToMessageID = update.Message.MessageID
 			bot.Send(msg)
@@ -179,7 +179,7 @@ func (s *ServiceVacation) HandleCommand(update tg.Update, bot *tg.BotAPI) (execu
 }
 
 // Обрабатывает нажатия на кнопки
-func (s *ServiceVacation) handleButtonPress(update tg.Update, bot *tg.BotAPI) (executed bool) {
+func (s *VacationService) handleButtonPress(update tg.Update, bot *tg.BotAPI) (executed bool) {
 	if update.Message == nil {
 		return false
 	}
@@ -199,12 +199,12 @@ func (s *ServiceVacation) handleButtonPress(update tg.Update, bot *tg.BotAPI) (e
 
 	switch update.Message.Text {
 	case ButtonTextConstants.VacationsList:
-		if !access.IsAdmin(update.Message.From.ID) {
+		if !access.IsAdmin(update.Message.From.ID, *s.usersMap) {
 			return false
 		}
 		return s.handleVacationsCommand(update, bot)
 	case ButtonTextConstants.VacationsStart:
-		if !access.IsAdmin(update.Message.From.ID) {
+		if !access.IsAdmin(update.Message.From.ID, *s.usersMap) {
 			return false
 		}
 		return s.handleAdminCommand(update, bot)
@@ -232,7 +232,7 @@ func (s *ServiceVacation) handleButtonPress(update tg.Update, bot *tg.BotAPI) (e
 }
 
 // Обрабатывает изменение статуса отпуска
-func (s *ServiceVacation) handleChangeVacationStatus(update tg.Update, bot *tg.BotAPI) {
+func (s *VacationService) handleChangeVacationStatus(update tg.Update, bot *tg.BotAPI) {
 	switch update.Message.Text {
 	case ButtonTextConstants.TakeVacation, ButtonTextConstants.ChangeVacation:
 		// Показываем календарь на клавиатуре

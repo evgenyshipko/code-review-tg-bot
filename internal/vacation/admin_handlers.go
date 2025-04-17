@@ -11,7 +11,7 @@ import (
 )
 
 // Обрабатывает действия в админ-панели
-func (s *ServiceVacation) HandleAdminPanel(update tg.Update, bot *tg.BotAPI, state AdminPanelState) {
+func (s *VacationService) HandleAdminPanel(update tg.Update, bot *tg.BotAPI, state AdminPanelState) {
 	// Сбрасываем состояние пользователя при работе с админ-панелью
 	s.ResetAllStates(update.Message.From.ID)
 
@@ -38,21 +38,15 @@ func (s *ServiceVacation) HandleAdminPanel(update tg.Update, bot *tg.BotAPI, sta
 }
 
 // Обрабатывает выбор пользователя
-func (s *ServiceVacation) handleAdminPickUser(update tg.Update, bot *tg.BotAPI, state AdminPanelState) {
+func (s *VacationService) handleAdminPickUser(update tg.Update, bot *tg.BotAPI, state AdminPanelState) {
 	if strings.HasPrefix(update.Message.Text, "👤 ") {
 		selectedFullName := strings.TrimPrefix(update.Message.Text, "👤 ")
 
-		// Получаем ID пользователя по полному имени
-		allUsers, err := access.ParseUserIds("REVIEW_PARTICIPANTS_IDS")
-		if err != nil {
-			logger.Instance.Error("Ошибка при парсинге списка пользователей", "error", err)
-			return
-		}
+		allUsers := s.usersMap.ReviewersIdsMap
 
 		// Получаем ID выбранного пользователя
 		var selectedUserId int64
 		for uid, userNameFromEnv := range allUsers {
-
 			if userNameFromEnv == selectedFullName {
 				selectedUserId = uid
 				break
@@ -84,7 +78,7 @@ func (s *ServiceVacation) handleAdminPickUser(update tg.Update, bot *tg.BotAPI, 
 }
 
 // Обрабатывает действия в админ-панели
-func (s *ServiceVacation) handleAdminActionsForUser(update tg.Update, bot *tg.BotAPI, state AdminPanelState) {
+func (s *VacationService) handleAdminActionsForUser(update tg.Update, bot *tg.BotAPI, state AdminPanelState) {
 	switch update.Message.Text {
 	case ButtonTextConstants.TakeVacation, ButtonTextConstants.ChangeVacation:
 		// Показываем календарь
@@ -111,12 +105,7 @@ func (s *ServiceVacation) handleAdminActionsForUser(update tg.Update, bot *tg.Bo
 			return
 		}
 
-		// Получаем список пользователей для поиска имени
-		allUsers, err := access.ParseUserIds("REVIEW_PARTICIPANTS_IDS")
-		if err != nil {
-			logger.Instance.Error("Ошибка при парсинге списка пользователей", "error", err)
-			return
-		}
+		allUsers := s.usersMap.ReviewersIdsMap
 
 		// Ищем имя пользователя по ID
 		var username string
@@ -151,7 +140,7 @@ func (s *ServiceVacation) handleAdminActionsForUser(update tg.Update, bot *tg.Bo
 }
 
 // Обрабатывает добавление пользователя в отпуск
-func (s *ServiceVacation) handleAdminSetVacation(update tg.Update, bot *tg.BotAPI, state AdminPanelState) {
+func (s *VacationService) handleAdminSetVacation(update tg.Update, bot *tg.BotAPI, state AdminPanelState) {
 	// Проверка, является ли сообщение датой
 	returnDate, err := time.Parse(DateFormatLayout, update.Message.Text)
 
@@ -170,12 +159,7 @@ func (s *ServiceVacation) handleAdminSetVacation(update tg.Update, bot *tg.BotAP
 		return
 	}
 
-	// Получаем список пользователей для поиска имени
-	allUsers, err := access.ParseUserIds("REVIEW_PARTICIPANTS_IDS")
-	if err != nil {
-		logger.Instance.Error("Ошибка при парсинге списка пользователей", "error", err)
-		return
-	}
+	allUsers := s.usersMap.ReviewersIdsMap
 
 	// Поиск имени пользователя
 	var username string
@@ -214,21 +198,16 @@ func (s *ServiceVacation) handleAdminSetVacation(update tg.Update, bot *tg.BotAP
 }
 
 // Обрабатывает команду /admin
-func (s *ServiceVacation) handleAdminCommand(update tg.Update, bot *tg.BotAPI) bool {
+func (s *VacationService) handleAdminCommand(update tg.Update, bot *tg.BotAPI) bool {
 	// Проверяем, является ли пользователь админом
-	if !access.IsAdmin(update.Message.From.ID) {
+	if !access.IsAdmin(update.Message.From.ID, *s.usersMap) {
 		msg := tg.NewMessage(update.Message.Chat.ID, "Эта команда доступна только администраторам")
 		msg.ReplyToMessageID = update.Message.MessageID
 		bot.Send(msg)
 		return true
 	}
 
-	// Получаем список всех пользователей
-	allUsers, err := access.ParseUserIds("REVIEW_PARTICIPANTS_IDS")
-	if err != nil {
-		logger.Instance.Error("Ошибка при парсинге списка пользователей", "error", err)
-		return true
-	}
+	allUsers := s.usersMap.ReviewersIdsMap
 
 	keyboard := s.createUsersKeyboard(allUsers)
 	msg := tg.NewMessage(update.Message.Chat.ID, "Выберите пользователя:")
@@ -241,7 +220,7 @@ func (s *ServiceVacation) handleAdminCommand(update tg.Update, bot *tg.BotAPI) b
 	}
 	s.storage.Set(fmt.Sprintf("admin_state_%d", update.Message.From.ID), state)
 
-	_, err = bot.Send(msg)
+	_, err := bot.Send(msg)
 	if err != nil {
 		logger.Instance.Error("Ошибка отправки клавиатуры", "error", err)
 	}
@@ -249,18 +228,12 @@ func (s *ServiceVacation) handleAdminCommand(update tg.Update, bot *tg.BotAPI) b
 	return true
 }
 
-func (s *ServiceVacation) handleReturnFromVacation(update tg.Update, bot *tg.BotAPI, userNameFromEnv string) bool {
-	if !access.IsAdmin(update.Message.From.ID) {
+func (s *VacationService) handleReturnFromVacation(update tg.Update, bot *tg.BotAPI, userNameFromEnv string) bool {
+	if !access.IsAdmin(update.Message.From.ID, *s.usersMap) {
 		return false
 	}
 
-	// Получаем всех пользователей
-	allUsers, err := access.ParseUserIds("REVIEW_PARTICIPANTS_IDS")
-	if err != nil {
-		logger.Instance.Error("Ошибка при парсинге списка пользователей", "error", err)
-		return true
-	}
-
+	allUsers := s.usersMap.ReviewersIdsMap
 	// Ищем пользователя по имени среди тех, кто в отпуске
 	foundUserId := s.findUserIdByName(allUsers, userNameFromEnv)
 
@@ -273,16 +246,12 @@ func (s *ServiceVacation) handleReturnFromVacation(update tg.Update, bot *tg.Bot
 	return false
 }
 
-func (s *ServiceVacation) handleChangeVacation(update tg.Update, bot *tg.BotAPI, userName string) bool {
-	if !access.IsAdmin(update.Message.From.ID) {
+func (s *VacationService) handleChangeVacation(update tg.Update, bot *tg.BotAPI, userName string) bool {
+	if !access.IsAdmin(update.Message.From.ID, *s.usersMap) {
 		return false
 	}
 
-	allUsers, err := access.ParseUserIds("REVIEW_PARTICIPANTS_IDS")
-	if err != nil {
-		logger.Instance.Error("Ошибка при парсинге списка пользователей", "error", err)
-		return true
-	}
+	allUsers := s.usersMap.ReviewersIdsMap
 
 	foundUserId := s.findUserIdByName(allUsers, userName)
 	if foundUserId == 0 {
@@ -309,14 +278,14 @@ func (s *ServiceVacation) handleChangeVacation(update tg.Update, bot *tg.BotAPI,
 }
 
 // Обрабатывает команду /vacations
-func (s *ServiceVacation) handleVacationsCommand(update tg.Update, bot *tg.BotAPI) bool {
-	if !access.IsAdmin(update.Message.From.ID) {
+func (s *VacationService) handleVacationsCommand(update tg.Update, bot *tg.BotAPI) bool {
+	if !access.IsAdmin(update.Message.From.ID, *s.usersMap) {
 		msg := tg.NewMessage(update.Message.Chat.ID, "Эта команда доступна только администраторам")
 		bot.Send(msg)
 		return true
 	}
 
-	message, err := s.GetVacationsList(update)
+	message, err := s.GetVacationsList()
 	if err != nil {
 		logger.Instance.Error("Ошибка при получении списка отпусков", "error", err)
 		return true
@@ -343,7 +312,7 @@ func (s *ServiceVacation) handleVacationsCommand(update tg.Update, bot *tg.BotAP
 	return true
 }
 
-func (s *ServiceVacation) setUserReturnedFromVacation(userId int64, userName string, update tg.Update, bot *tg.BotAPI) {
+func (s *VacationService) setUserReturnedFromVacation(userId int64, userName string, update tg.Update, bot *tg.BotAPI) {
 	s.endVacation(userId)
 
 	message := fmt.Sprintf("Пользователь <a href=\"tg://user?id=%d\">%s</a> возвращен на работу",

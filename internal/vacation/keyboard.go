@@ -8,7 +8,7 @@ import (
 )
 
 // createUsersKeyboard создает клавиатуру со списком пользователей
-func (s *ServiceVacation) createUsersKeyboard(users access.UserIds) tg.ReplyKeyboardMarkup {
+func (s *VacationService) createUsersKeyboard(users access.UserIds) tg.ReplyKeyboardMarkup {
 	var rows [][]tg.KeyboardButton
 
 	for userId, userNameFromEnv := range users {
@@ -42,7 +42,7 @@ func (s *ServiceVacation) createUsersKeyboard(users access.UserIds) tg.ReplyKeyb
 }
 
 // Создает клавиатуру с датами
-func (s *ServiceVacation) createDateKeyboard(dates []string) tg.ReplyKeyboardMarkup {
+func (s *VacationService) createDateKeyboard(dates []string) tg.ReplyKeyboardMarkup {
 	var rows [][]tg.KeyboardButton
 	var elemCountInRow int = 3
 
@@ -66,13 +66,10 @@ func (s *ServiceVacation) createDateKeyboard(dates []string) tg.ReplyKeyboardMar
 }
 
 // Создает клавиатуру с пользователями в отпуске
-func (s *ServiceVacation) createVacationsListKeyboard() ([][]tg.KeyboardButton, error) {
+func (s *VacationService) createVacationsListKeyboard() ([][]tg.KeyboardButton, error) {
 	var buttons [][]tg.KeyboardButton
 
-	allUsers, err := access.ParseUserIds("REVIEW_PARTICIPANTS_IDS")
-	if err != nil {
-		return nil, fmt.Errorf("ошибка при парсинге списка пользователей: %w", err)
-	}
+	allUsers := s.usersMap.ReviewersIdsMap
 
 	// Проверяем статус отпуска для каждого пользователя
 	for userId, userName := range allUsers {
@@ -96,11 +93,11 @@ func (s *ServiceVacation) createVacationsListKeyboard() ([][]tg.KeyboardButton, 
 }
 
 // GetDefaultKeyboard возвращает клавиатуру по умолчанию
-func (s *ServiceVacation) GetDefaultKeyboard(userId int64) tg.ReplyKeyboardMarkup {
+func (s *VacationService) GetDefaultKeyboard(userId int64) tg.ReplyKeyboardMarkup {
 	var defaultButtons []tg.KeyboardButton
 
 	// Показываем кнопки отпуска только ревьюерам
-	if access.HasVacationAccess(userId) {
+	if access.HasVacationAccess(userId, *s.usersMap) {
 
 		if s.IsUserOnVacation(userId) {
 			defaultButtons = append(defaultButtons, tg.NewKeyboardButton(ButtonTextConstants.ReturnToWork))
@@ -110,7 +107,7 @@ func (s *ServiceVacation) GetDefaultKeyboard(userId int64) tg.ReplyKeyboardMarku
 	}
 
 	// Показываем админ-кнопки только админам
-	if access.HasAdminAccess(userId) {
+	if access.HasAdminAccess(userId, *s.usersMap) {
 		defaultButtons = append(defaultButtons,
 			tg.NewKeyboardButton("📋 Список отпусков"),
 			tg.NewKeyboardButton("➕ Отправить в отпуск"))

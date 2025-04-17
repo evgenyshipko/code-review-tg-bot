@@ -27,10 +27,10 @@ type ReviewersStorage map[int64]usedMembersType
 
 type ReviewersService struct {
 	storage         storage.Storage
-	vacationService *vacation.ServiceVacation
+	vacationService *vacation.VacationService
 }
 
-func NewReviewersService(storage storage.Storage, vacationService *vacation.ServiceVacation) *ReviewersService {
+func NewReviewersService(storage storage.Storage, vacationService *vacation.VacationService) *ReviewersService {
 	return &ReviewersService{
 		storage:         storage,
 		vacationService: vacationService,
