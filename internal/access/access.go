@@ -35,7 +35,6 @@ func InitUserMaps() (*UserMaps, error) {
 	TestersIdsMap, err := ParseUserIds("TESTERS_IDS")
 	if err != nil {
 		logger.Instance.Error("Ошибка при парсинге списка тестировщиков", "error", err)
-		return nil, err
 	}
 
 	return &UserMaps{
@@ -53,7 +52,7 @@ func ParseUserIds(envName string) (UserIds, error) {
 	var tempUserIds map[string]int64
 	err := json.Unmarshal([]byte(os.Getenv(envName)), &tempUserIds)
 	if err != nil {
-		return nil, err
+		return UserIds{}, err
 	}
 
 	userIds := make(UserIds)
