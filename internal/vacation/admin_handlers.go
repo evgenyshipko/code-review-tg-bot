@@ -1,7 +1,6 @@
 package vacation
 
 import (
-	"code-review-tg-bot/internal/constants"
 	"code-review-tg-bot/internal/logger"
 	"fmt"
 	"strings"
@@ -10,133 +9,97 @@ import (
 	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-// Обрабатывает действия в админ-панели
-func (s *VacationService) HandleAdminPanel(update tg.Update, bot *tg.BotAPI, state AdminPanelState) {
-	// Сбрасываем состояние пользователя при работе с админ-панелью
-	s.ResetAllStates(update.Message.From.ID)
+func (s *VacationService) handleAdminPickUser(update tg.Update, bot *tg.BotAPI, state AdminPanelState) {
+	selectedFullName := strings.TrimPrefix(update.Message.Text, "👤 ")
 
-	if update.Message.Text == constants.ButtonTextConstants.Cancel {
-		// Сбрасываем состояние админ-панели
-		s.resetAdminState(update.Message.From.ID)
+	allUsers := s.usersMap.ReviewersIdsMap
 
-		msg := tg.NewMessage(update.Message.Chat.ID, MsgKeyboardClosed)
-		msg.ReplyMarkup = tg.NewRemoveKeyboard(true)
+	var selectedUserId int64
+	for uid, userNameFromEnv := range allUsers {
+		if userNameFromEnv == selectedFullName {
+			selectedUserId = uid
+			break
+		}
+	}
+
+	if selectedUserId == 0 {
+		msg := tg.NewMessage(update.Message.Chat.ID, "Пользователь не найден")
 		msg.ReplyToMessageID = update.Message.MessageID
-
 		bot.Send(msg)
 		return
 	}
 
-	switch state.State {
-	case AdminStateUserList:
-		s.handleAdminPickUser(update, bot, state)
-	case AdminStateUserActions:
-		s.handleAdminActionsForUser(update, bot, state)
-	case AdminStateSetVacation:
-		s.handleAdminSetVacation(update, bot, state)
-	}
+	// Показываем календарь для выбора даты
+	dates := s.generateVacationDates()
+	keyboard := s.createDateKeyboard(dates)
+
+	msg := tg.NewMessage(update.Message.Chat.ID, "Выберите дату выхода на работу:")
+	msg.ReplyMarkup = keyboard
+	msg.ReplyToMessageID = update.Message.MessageID
+
+	// Обновляем состояние
+	state.State = AdminStateSetVacation
+	state.UserId = selectedUserId
+	s.storage.Set(fmt.Sprintf("admin_state_%d", update.Message.From.ID), state)
+
+	bot.Send(msg)
 }
 
-// Обрабатывает выбор пользователя
-func (s *VacationService) handleAdminPickUser(update tg.Update, bot *tg.BotAPI, state AdminPanelState) {
-	if strings.HasPrefix(update.Message.Text, "👤 ") {
-		selectedFullName := strings.TrimPrefix(update.Message.Text, "👤 ")
+func (s *VacationService) handleAdminChangeVacation(update tg.Update, bot *tg.BotAPI, state AdminPanelState) {
+	// Показываем календарь
+	dates := s.generateVacationDates()
+	keyboard := s.createDateKeyboard(dates)
 
-		allUsers := s.usersMap.ReviewersIdsMap
+	msg := tg.NewMessage(update.Message.Chat.ID, "Выберите дату выхода на работу:")
+	msg.ReplyMarkup = keyboard
+	msg.ReplyToMessageID = update.Message.MessageID
 
-		// Получаем ID выбранного пользователя
-		var selectedUserId int64
-		for uid, userNameFromEnv := range allUsers {
-			if userNameFromEnv == selectedFullName {
-				selectedUserId = uid
-				break
-			}
-		}
+	// Обновляем состояние
+	state.State = AdminStateSetVacation
+	s.storage.Set(fmt.Sprintf("admin_state_%d", update.Message.From.ID), state)
 
-		if selectedUserId == 0 {
-			msg := tg.NewMessage(update.Message.Chat.ID, "Пользователь не найден")
-			msg.ReplyToMessageID = update.Message.MessageID
-			bot.Send(msg)
-			return
-		}
+	bot.Send(msg)
 
-		// Показываем календарь для выбора даты
-		dates := s.generateVacationDates()
-		keyboard := s.createDateKeyboard(dates)
-
-		msg := tg.NewMessage(update.Message.Chat.ID, "Выберите дату выхода на работу:")
-		msg.ReplyMarkup = keyboard
-		msg.ReplyToMessageID = update.Message.MessageID
-
-		// Обновляем состояние
-		state.State = AdminStateSetVacation
-		state.SelectedUID = selectedUserId
-		s.storage.Set(fmt.Sprintf("admin_state_%d", update.Message.From.ID), state)
-
-		bot.Send(msg)
-	}
 }
 
-// Обрабатывает действия в админ-панели
-func (s *VacationService) handleAdminActionsForUser(update tg.Update, bot *tg.BotAPI, state AdminPanelState) {
-	switch update.Message.Text {
-	case constants.ButtonTextConstants.TakeVacation, constants.ButtonTextConstants.ChangeVacation:
-		// Показываем календарь
-		dates := s.generateVacationDates()
-		keyboard := s.createDateKeyboard(dates)
-
-		msg := tg.NewMessage(update.Message.Chat.ID, "Выберите дату выхода на работу:")
-		msg.ReplyMarkup = keyboard
+func (s *VacationService) handleAdminReturnToWork(update tg.Update, bot *tg.BotAPI, state AdminPanelState) {
+	if !s.IsUserOnVacation(update.Message.From.ID) {
+		msg := tg.NewMessage(update.Message.Chat.ID, "Пользователь не находится в отпуске")
 		msg.ReplyToMessageID = update.Message.MessageID
-
-		// Обновляем состояние
-		state.State = AdminStateSetVacation
-		s.storage.Set(fmt.Sprintf("admin_state_%d", update.Message.From.ID), state)
-
-		bot.Send(msg)
-
-	case constants.ButtonTextConstants.ReturnToWork:
-		// Проверяем, находится ли пользователь в отпуске
-		if !s.IsUserOnVacation(update.Message.From.ID) {
-			msg := tg.NewMessage(update.Message.Chat.ID, "Пользователь не находится в отпуске")
-			msg.ReplyToMessageID = update.Message.MessageID
-			msg.ReplyMarkup = tg.NewRemoveKeyboard(true)
-			bot.Send(msg)
-			return
-		}
-
-		allUsers := s.usersMap.ReviewersIdsMap
-
-		// Ищем имя пользователя по ID
-		var username string
-		for uid, userNameFromEnv := range allUsers {
-			if uid == state.SelectedUID {
-
-				username = userNameFromEnv
-				break
-			}
-		}
-
-		if username == "" {
-			logger.Instance.Error("Не удалось найти имя пользователя", "user_id", state.SelectedUID)
-			return
-		}
-
-		s.endVacation(state.SelectedUID)
-
-		message := fmt.Sprintf("Пользователь <a href=\"tg://user?id=%d\">%s</a> возвращен на работу",
-			state.SelectedUID,
-			username)
-		msg := tg.NewMessage(update.Message.Chat.ID, message)
-		msg.ParseMode = tg.ModeHTML
 		msg.ReplyMarkup = tg.NewRemoveKeyboard(true)
-		msg.ReplyToMessageID = update.Message.MessageID
-
-		// Сбрасываем состояние админ-панели
-		s.storage.Set(fmt.Sprintf("admin_state_%d", update.Message.From.ID), AdminPanelState{State: AdminStateNone})
-
 		bot.Send(msg)
+		return
 	}
+
+	allUsers := s.usersMap.ReviewersIdsMap
+
+	// Ищем имя пользователя по ID
+	var username string
+	for uid, userNameFromEnv := range allUsers {
+		if uid == state.UserId {
+			username = userNameFromEnv
+			break
+		}
+	}
+
+	if username == "" {
+		logger.Instance.Error("Не удалось найти имя пользователя", "user_id", state.UserId)
+		return
+	}
+
+	s.endVacation(state.UserId)
+
+	message := fmt.Sprintf("Пользователь <a href=\"tg://user?id=%d\">%s</a> возвращен на работу",
+		state.UserId,
+		username)
+	msg := tg.NewMessage(update.Message.Chat.ID, message)
+	msg.ParseMode = tg.ModeHTML
+	msg.ReplyMarkup = tg.NewRemoveKeyboard(true)
+	msg.ReplyToMessageID = update.Message.MessageID
+
+	s.resetAdminState(state.UserId)
+
+	bot.Send(msg)
 }
 
 // Обрабатывает добавление пользователя в отпуск
@@ -164,7 +127,7 @@ func (s *VacationService) handleAdminSetVacation(update tg.Update, bot *tg.BotAP
 	// Поиск имени пользователя
 	var username string
 	for uid, userNameFromEnv := range allUsers {
-		if uid == state.SelectedUID {
+		if uid == state.UserId {
 
 			username = userNameFromEnv
 
@@ -173,17 +136,17 @@ func (s *VacationService) handleAdminSetVacation(update tg.Update, bot *tg.BotAP
 	}
 
 	if username == "" {
-		logger.Instance.Error("Не удалось найти пользователя", "user_id", state.SelectedUID)
+		logger.Instance.Error("Не удалось найти пользователя", "user_id", state.UserId)
 		return
 	}
 
-	if err := s.startVacation(state.SelectedUID, returnDate); err != nil {
+	if err := s.startVacation(state.UserId, returnDate); err != nil {
 		logger.Instance.Error("Ошибка сохранения статуса отпуска", "error", err)
 		return
 	}
 
 	message := fmt.Sprintf("Пользователь <a href=\"tg://user?id=%d\">%s</a> добавлен в отпуск до %s",
-		state.SelectedUID,
+		state.UserId,
 		username,
 		update.Message.Text)
 	msg := tg.NewMessage(update.Message.Chat.ID, message)
@@ -191,14 +154,12 @@ func (s *VacationService) handleAdminSetVacation(update tg.Update, bot *tg.BotAP
 	msg.ReplyMarkup = tg.NewRemoveKeyboard(true)
 	msg.ReplyToMessageID = update.Message.MessageID
 
-	// Сбрасываем состояние админ-панели
-	s.storage.Set(fmt.Sprintf("admin_state_%d", update.Message.From.ID), AdminPanelState{State: AdminStateNone})
+	s.resetAdminState(state.UserId)
 
 	bot.Send(msg)
 }
 
-// Обрабатывает команду /admin
-func (s *VacationService) handleAdminCommand(update tg.Update, bot *tg.BotAPI) bool {
+func (s *VacationService) handleSendOnVacation(update tg.Update, bot *tg.BotAPI) bool {
 	allUsers := s.usersMap.ReviewersIdsMap
 
 	keyboard := s.createUsersKeyboard(allUsers)
@@ -227,7 +188,7 @@ func (s *VacationService) handleReturnFromVacation(update tg.Update, bot *tg.Bot
 
 	if foundUserId != 0 {
 		s.setUserReturnedFromVacation(foundUserId, userNameFromEnv, update, bot)
-		s.handleVacationsCommand(update, bot)
+		s.handleVacationListCommand(update, bot)
 		return true
 	}
 
@@ -252,8 +213,8 @@ func (s *VacationService) handleChangeVacation(update tg.Update, bot *tg.BotAPI,
 
 	// Сохраняем состояние и ID пользователя
 	state := AdminPanelState{
-		State:       AdminStateSetVacation,
-		SelectedUID: foundUserId,
+		State:  AdminStateSetVacation,
+		UserId: foundUserId,
 	}
 	s.storage.Set(fmt.Sprintf("admin_state_%d", update.Message.From.ID), state)
 
@@ -262,7 +223,7 @@ func (s *VacationService) handleChangeVacation(update tg.Update, bot *tg.BotAPI,
 }
 
 // Обрабатывает команду /vacations
-func (s *VacationService) handleVacationsCommand(update tg.Update, bot *tg.BotAPI) bool {
+func (s *VacationService) handleVacationListCommand(update tg.Update, bot *tg.BotAPI) bool {
 	message, err := s.GetVacationsList()
 	if err != nil {
 		logger.Instance.Error("Ошибка при получении списка отпусков", "error", err)

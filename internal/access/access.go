@@ -115,6 +115,10 @@ func IsUserHasAccessToCommand(userId int64, command string, users Users) bool {
 	return false
 }
 
+func IsUserHasAccessToButton(userId int64, text string, users Users) {
+	//TODO: имплементировать
+}
+
 func ParseUserIds(envName string) (UserIds, error) {
 	var tempUserIds map[string]int64
 	err := json.Unmarshal([]byte(os.Getenv(envName)), &tempUserIds)
@@ -152,10 +156,10 @@ func HasAdminAccess(userId int64, maps UserMaps) bool {
 }
 
 var CommandToRoleMapping = map[string][]constants.UserRole{
-	constants.Start:           []constants.UserRole{constants.Admin, constants.Tester, constants.Reviewer},
-	constants.Rest:            []constants.UserRole{constants.Reviewer},
-	constants.Work:            []constants.UserRole{constants.Reviewer},
-	constants.Vacations:       []constants.UserRole{constants.Admin},
-	constants.Vacations_start: []constants.UserRole{constants.Admin},
-	constants.Test_vacation:   []constants.UserRole{constants.Tester, constants.Admin},
+	constants.Start:            []constants.UserRole{constants.Admin, constants.Tester, constants.Reviewer},
+	constants.TakeVacation:     []constants.UserRole{constants.Reviewer},
+	constants.ReturnToWork:     []constants.UserRole{constants.Reviewer},
+	constants.VacationsList:    []constants.UserRole{constants.Admin},
+	constants.SendOnVacation:   []constants.UserRole{constants.Admin},
+	constants.TestTakeVacation: []constants.UserRole{constants.Tester, constants.Admin},
 }

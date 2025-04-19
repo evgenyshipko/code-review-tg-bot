@@ -2,6 +2,6 @@ package vacation
 
 // состояние админ-панели
 type AdminPanelState struct {
-	State       string `json:"state"`
-	SelectedUID int64  `json:"selected_uid,omitempty"`
+	State  string `json:"state"`
+	UserId int64  `json:"user_id,omitempty"`
 }

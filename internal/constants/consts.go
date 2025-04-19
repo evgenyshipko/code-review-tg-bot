@@ -1,12 +1,12 @@
 package constants
 
 const (
-	Start           = "start"
-	Rest            = "rest"
-	Work            = "work"
-	Vacations_start = "vacations_start"
-	Vacations       = "vacations"
-	Test_vacation   = "test_vacation"
+	Start            = "start"
+	TakeVacation     = "take_vacation"
+	ReturnToWork     = "return_to_work"
+	SendOnVacation   = "send_on_vacation"
+	VacationsList    = "vacations_list"
+	TestTakeVacation = "test_take_vacation"
 )
 
 type ButtonText struct {
@@ -16,7 +16,7 @@ type ButtonText struct {
 	ReturnToWork       string
 	Cancel             string
 	VacationsList      string
-	VacationsStart     string
+	SendOnVacation     string
 }
 
 var ButtonTextConstants = ButtonText{
@@ -26,14 +26,14 @@ var ButtonTextConstants = ButtonText{
 	ReturnToWork:       "💼 Выход на работу",
 	Cancel:             "❌ Закрыть",
 	VacationsList:      "📋 Список отпусков",
-	VacationsStart:     "➕ Отправить в отпуск",
+	SendOnVacation:     "➕ Отправить в отпуск",
 }
 
 var KeyboardToRoleMapping = map[string][]UserRole{
 	ButtonTextConstants.ReturnToWork:       []UserRole{Reviewer},
 	ButtonTextConstants.TakeVacation:       []UserRole{Reviewer},
 	ButtonTextConstants.ReturnFromVacation: []UserRole{Admin},
-	ButtonTextConstants.VacationsStart:     []UserRole{Admin},
+	ButtonTextConstants.SendOnVacation:     []UserRole{Admin},
 	ButtonTextConstants.VacationsList:      []UserRole{Admin},
 	ButtonTextConstants.Cancel:             []UserRole{Admin, Tester, Reviewer},
 }
