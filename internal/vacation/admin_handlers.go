@@ -240,9 +240,7 @@ func (s *VacationService) handleVacationListCommand(update tg.Update, bot *tg.Bo
 	msg := tg.NewMessage(update.Message.Chat.ID, message)
 
 	if len(buttons) > 0 {
-		keyboard := tg.NewReplyKeyboard(buttons...)
-		keyboard.OneTimeKeyboard = true
-		keyboard.Selective = true
+		keyboard := tg.NewInlineKeyboardMarkup(buttons...)
 		msg.ReplyMarkup = keyboard
 		msg.ReplyToMessageID = update.Message.MessageID
 	}

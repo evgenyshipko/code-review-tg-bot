@@ -96,6 +96,12 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI, vs *vacation.VacationService
 		}
 	}()
 
+	logger.Instance.Infow("update.InlineQuery", "update.CallbackQuery", update.CallbackQuery)
+
+	if update.Message == nil {
+		return
+	}
+
 	if !access.IsUserHasAccess(update.Message.From.ID, *users) {
 		return
 	}
