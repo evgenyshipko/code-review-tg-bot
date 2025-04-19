@@ -88,18 +88,19 @@ func (s *VacationService) endVacation(userId int64) {
 // Все входящие обновления
 func (s *VacationService) HandleUpdate(update tg.Update, bot *tg.BotAPI) bool {
 
-	//msg := update.Message.Text
-	//
-	//
-	//if strings.Contains(msg, constants.Start){
-	//
-	//}
+	if update.Message.IsCommand() {
+		s.HandleCommand(update, bot)
+		return true
+	}
+
+	if s.isButtonPress(update.Message.Text) {
+		s.handleButtonPress(update, bot)
+		return true
+	}
 
 	handlers := []func(tg.Update, *tg.BotAPI) (executed bool){
 		s.handleAdminUpdate,
-		s.handleButtonPress,
 		s.handleTextCommand,
-		s.HandleCommand,
 	}
 
 	for _, handler := range handlers {

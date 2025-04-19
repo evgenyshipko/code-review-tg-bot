@@ -5,6 +5,7 @@ import (
 	"code-review-tg-bot/internal/constants"
 	"code-review-tg-bot/internal/logger"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
@@ -65,10 +66,6 @@ func (s *VacationService) handleTextCommand(update tg.Update, bot *tg.BotAPI) (e
 }
 
 func (s *VacationService) HandleCommand(update tg.Update, bot *tg.BotAPI) (executed bool) {
-	if update.Message == nil && !update.Message.IsCommand() {
-		return false
-	}
-
 	command := update.Message.Command()
 	if !access.IsUserHasAccessToCommand(update.Message.From.ID, command, *s.users) {
 		msg := tg.NewMessage(update.Message.Chat.ID, "У Вас нет доступа к данной команде")
@@ -167,11 +164,21 @@ func (s *VacationService) HandleCommand(update tg.Update, bot *tg.BotAPI) (execu
 	return false
 }
 
+func (s *VacationService) isButtonPress(text string) bool {
+
+	val := reflect.ValueOf(constants.ButtonTextConstants)
+
+	for i := 0; i < val.NumField(); i++ {
+		if strings.Contains(text, val.Field(i).String()) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // Обрабатывает нажатия на кнопки
 func (s *VacationService) handleButtonPress(update tg.Update, bot *tg.BotAPI) (executed bool) {
-	if update.Message == nil {
-		return false
-	}
 
 	var userState string
 	s.storage.Get(fmt.Sprintf("user_state_%d", update.Message.From.ID), &userState)
