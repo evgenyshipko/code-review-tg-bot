@@ -2,6 +2,7 @@ package vacation
 
 import (
 	"code-review-tg-bot/internal/access"
+	"code-review-tg-bot/internal/constants"
 	"code-review-tg-bot/internal/logger"
 	"fmt"
 	"strings"
@@ -70,7 +71,17 @@ func (s *VacationService) HandleCommand(update tg.Update, bot *tg.BotAPI) (execu
 	}
 
 	switch update.Message.Command() {
-	case test_vacation:
+	case constants.Start:
+		msg := tg.NewMessage(update.Message.Chat.ID, "Выберите команду:")
+		msg.ReplyMarkup = s.GetDefaultKeyboard(update.Message.From.ID)
+		msg.ReplyToMessageID = update.Message.MessageID
+
+		_, err := bot.Send(msg)
+		if err != nil {
+			logger.Instance.Error("Ошибка отправки клавиатуры", "error", err)
+		}
+		return true
+	case constants.Test_vacation:
 		if !access.IsTester(update.Message.From.ID, *s.usersMap) {
 			msg := tg.NewMessage(update.Message.Chat.ID, "Команда доступна только для тестировщиков")
 			msg.ReplyToMessageID = update.Message.MessageID
@@ -113,7 +124,7 @@ func (s *VacationService) HandleCommand(update tg.Update, bot *tg.BotAPI) (execu
 		bot.Send(msg)
 		return true
 
-	case rest, work:
+	case constants.Rest, constants.Work:
 		if !access.HasVacationAccess(update.Message.From.ID, *s.usersMap) {
 			msg := tg.NewMessage(update.Message.Chat.ID, "У вас нет доступа к этой команде")
 			msg.ReplyToMessageID = update.Message.MessageID
@@ -121,7 +132,7 @@ func (s *VacationService) HandleCommand(update tg.Update, bot *tg.BotAPI) (execu
 			return true
 		}
 
-		if update.Message.Command() == rest {
+		if update.Message.Command() == constants.Rest {
 			// Сбрасываем состояние админ-панели
 			s.resetAdminState(update.Message.From.ID)
 
@@ -160,7 +171,7 @@ func (s *VacationService) HandleCommand(update tg.Update, bot *tg.BotAPI) (execu
 			}, bot)
 			return true
 		}
-	case vacations, vacations_start:
+	case constants.Vacations, constants.Vacations_start:
 		if !access.HasAdminAccess(update.Message.From.ID, *s.usersMap) {
 			msg := tg.NewMessage(update.Message.Chat.ID, "У вас нет доступа к этой команде")
 			msg.ReplyToMessageID = update.Message.MessageID
@@ -168,7 +179,7 @@ func (s *VacationService) HandleCommand(update tg.Update, bot *tg.BotAPI) (execu
 			return true
 		}
 
-		if update.Message.Command() == vacations {
+		if update.Message.Command() == constants.Vacations {
 			return s.handleVacationsCommand(update, bot)
 		} else {
 			return s.handleAdminCommand(update, bot)

@@ -10,7 +10,6 @@ type ButtonText struct {
 	VacationsStart     string
 }
 
-// Константы для текста кнопок
 var ButtonTextConstants = ButtonText{
 	TakeVacation:       "🏃 Оформить отпуск",
 	ReturnFromVacation: "🔄 Вернуть из отпуска:",
@@ -55,13 +54,4 @@ const (
 // Константы для сообщений
 const (
 	MsgKeyboardClosed = "Клавиатура закрыта"
-)
-
-// Константы для комманд
-const (
-	rest            = "rest"
-	work            = "work"
-	vacations_start = "vacations_start"
-	vacations       = "vacations"
-	test_vacation   = "test_vacation"
 )

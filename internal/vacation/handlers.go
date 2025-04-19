@@ -1,6 +1,7 @@
 package vacation
 
 import (
+	"code-review-tg-bot/internal/constants"
 	"fmt"
 	"time"
 
@@ -35,26 +36,26 @@ func (s *VacationService) GetVacationsList() (string, error) {
 func (s *VacationService) GetCommands() []tg.BotCommand {
 	commands := []tg.BotCommand{
 		{
-			Command:     rest,
+			Command:     constants.Rest,
 			Description: "Уйти в отпуск",
 		},
 		{
-			Command:     work,
+			Command:     constants.Work,
 			Description: "Вернуться к работе",
 		},
 		{
-			Command:     vacations,
+			Command:     constants.Vacations,
 			Description: "Показать список отпусков (только для админов)",
 		},
 		{
-			Command:     vacations_start,
+			Command:     constants.Vacations_start,
 			Description: "Отправить сотрудника в отпуск (только для админов)",
 		},
 	}
 
 	if len(s.usersMap.TestersIdsMap) > 0 {
 		commands = append(commands, tg.BotCommand{
-			Command:     test_vacation,
+			Command:     constants.Test_vacation,
 			Description: "Уйти в отпуск на 1 минуту (тестовый режим)",
 		})
 	}

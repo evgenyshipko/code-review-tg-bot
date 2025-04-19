@@ -4,8 +4,6 @@ import (
 	"code-review-tg-bot/internal/logger"
 	"encoding/json"
 	"os"
-
-	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 type UserIds map[int64]string
@@ -60,7 +58,6 @@ func MapUserToRoles() (Users, error) {
 func addUsers(users Users, userIds UserIds, role UserRole) {
 	for id, name := range userIds {
 		_, ok := users[id]
-		// If the key exists
 		if ok {
 			users[id] = UserData{
 				Name:  name,
@@ -102,8 +99,15 @@ func InitUserMaps() (*UserMaps, error) {
 	}, nil
 }
 
-func IsUserHasAccess(msg tg.Message, userMaps *UserMaps) bool {
-	return isUserInMap(msg.From.ID, userMaps.ReviewersIdsMap) || isUserInMap(msg.From.ID, userMaps.AdminsIdsMap)
+func IsUserHasAccess(userId int64, users Users) bool {
+	if val, ok := users[userId]; ok {
+		for _, role := range val.Roles {
+			if role == Reviewer || role == Admin {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func ParseUserIds(envName string) (UserIds, error) {

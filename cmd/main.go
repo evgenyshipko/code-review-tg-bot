@@ -2,6 +2,7 @@ package main
 
 import (
 	"code-review-tg-bot/internal/access"
+	"code-review-tg-bot/internal/constants"
 	"code-review-tg-bot/internal/logger"
 	"code-review-tg-bot/internal/mergeRequest"
 	"code-review-tg-bot/internal/reviewers"
@@ -77,7 +78,7 @@ func main() {
 
 	// ЗАПОМНИТЬ: цикл работает пока канал не закрыт
 	for update := range updates {
-		mainLoopFunc(update, bot, vacationService, mergeRequestHandler, userMaps)
+		mainLoopFunc(update, bot, vacationService, mergeRequestHandler, &users)
 	}
 }
 
@@ -87,7 +88,7 @@ func main() {
 //TODO: сделать чтобы бот проставлял ревьюверов в гитлабе
 //TODO: предусмотреть возможность передачи множества сервисов в mainLoopFunc
 
-func mainLoopFunc(update tg.Update, bot *tg.BotAPI, vs *vacation.VacationService, mr *mergeRequest.MergeRequestService, userMaps *access.UserMaps) {
+func mainLoopFunc(update tg.Update, bot *tg.BotAPI, vs *vacation.VacationService, mr *mergeRequest.MergeRequestService, users *access.Users) {
 	defer func() {
 		if r := recover(); r != nil {
 			logger.Instance.Error("Паника перехвачена", "error", r)
@@ -95,20 +96,13 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI, vs *vacation.VacationService
 		}
 	}()
 
-	if !access.IsUserHasAccess(*update.Message, userMaps) {
+	if !access.IsUserHasAccess(update.Message.From.ID, *users) {
 		return
 	}
 
 	logger.Instance.Infow(fmt.Sprintf("[%s] %s", update.Message.From.UserName, update.Message.Text))
 
-	// Обработка отпусков
 	if vs.HandleUpdate(update, bot) {
-		return
-	}
-
-	// Обработка команд
-	if update.Message.IsCommand() {
-		handleDefaultCommands(update, bot, vs)
 		return
 	}
 
@@ -132,31 +126,11 @@ func sendNewMessage(message string, bot *tg.BotAPI, update tg.Update) {
 	}
 }
 
-// Обработка команд
-func handleDefaultCommands(update tg.Update, bot *tg.BotAPI, vacationService *vacation.VacationService) {
-	if update.Message == nil {
-		return
-	}
-
-	// Базовые команды
-	switch update.Message.Command() {
-	case "start":
-		msg := tg.NewMessage(update.Message.Chat.ID, "Выберите команду:")
-		msg.ReplyMarkup = vacationService.GetDefaultKeyboard(update.Message.From.ID)
-		msg.ReplyToMessageID = update.Message.MessageID
-
-		_, err := bot.Send(msg)
-		if err != nil {
-			logger.Instance.Error("Ошибка отправки клавиатуры", "error", err)
-		}
-	}
-}
-
 func setUpBotCommands(bot *tg.BotAPI, vacationCommands []tg.BotCommand) error {
 	// Базовые команды
 	commands := []tg.BotCommand{
 		{
-			Command:     "start",
+			Command:     constants.Start,
 			Description: "Показать клавиатуру с командами",
 		},
 	}
