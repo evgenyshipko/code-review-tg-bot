@@ -28,6 +28,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	users, err := access.MapUserToRoles()
+	if err != nil {
+		logger.Instance.Warnw("access.MapUserToRoles", "error", err)
+	}
+	logger.Instance.Info(users)
+
 	userMaps, err := access.InitUserMaps()
 	if err != nil {
 		logger.Instance.Errorw("Ошибка инициализации списков пользователей", "error", err)

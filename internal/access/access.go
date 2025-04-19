@@ -17,6 +17,64 @@ type UserMaps struct {
 	TestersIdsMap   UserIds
 }
 
+type UserRole string
+
+const (
+	Tester   UserRole = "Tester"
+	Reviewer UserRole = "Reviewer"
+	Admin    UserRole = "Admin"
+)
+
+type UserData struct {
+	Name  string
+	Roles []UserRole
+}
+
+type Users map[int64]UserData
+
+func MapUserToRoles() (Users, error) {
+	var err error
+
+	ReviewersIdsMap, err := ParseUserIds("REVIEW_PARTICIPANTS_IDS")
+	if err != nil {
+		logger.Instance.Error("Ошибка при парсинге списка ревьюеров", "error", err)
+	}
+
+	AdminsIdsMap, err := ParseUserIds("ADMINS_IDS")
+	if err != nil {
+		logger.Instance.Error("Ошибка при парсинге списка администраторов", "error", err)
+	}
+
+	TestersIdsMap, err := ParseUserIds("TESTERS_IDS")
+	if err != nil {
+		logger.Instance.Error("Ошибка при парсинге списка тестировщиков", "error", err)
+	}
+
+	users := Users{}
+	addUsers(users, ReviewersIdsMap, Reviewer)
+	addUsers(users, AdminsIdsMap, Admin)
+	addUsers(users, TestersIdsMap, Tester)
+	return users, nil
+}
+
+func addUsers(users Users, userIds UserIds, role UserRole) {
+	for id, name := range userIds {
+		_, ok := users[id]
+		// If the key exists
+		if ok {
+			users[id] = UserData{
+				Name:  name,
+				Roles: append(users[id].Roles, role),
+			}
+		} else {
+			users[id] = UserData{
+				Name:  name,
+				Roles: []UserRole{role},
+			}
+		}
+	}
+}
+
 func InitUserMaps() (*UserMaps, error) {
 	var err error
 
