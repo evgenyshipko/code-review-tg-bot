@@ -2,12 +2,12 @@ package vacation
 
 import (
 	"code-review-tg-bot/internal/access"
+	"code-review-tg-bot/internal/constants"
 	"fmt"
 
 	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-// createUsersKeyboard создает клавиатуру со списком пользователей
 func (s *VacationService) createUsersKeyboard(users access.UserIds) tg.ReplyKeyboardMarkup {
 	var rows [][]tg.KeyboardButton
 
@@ -22,17 +22,9 @@ func (s *VacationService) createUsersKeyboard(users access.UserIds) tg.ReplyKeyb
 		})
 	}
 
-	// Добавляем кнопку отмены только если есть пользователи
-	if len(rows) > 0 {
-		rows = append(rows, []tg.KeyboardButton{
-			tg.NewKeyboardButton(ButtonTextConstants.Cancel),
-		})
-	} else {
-		// Если нет доступных пользователей, показываем только кнопку отмены
-		rows = append(rows, []tg.KeyboardButton{
-			tg.NewKeyboardButton(ButtonTextConstants.Cancel),
-		})
-	}
+	rows = append(rows, []tg.KeyboardButton{
+		tg.NewKeyboardButton(constants.ButtonTextConstants.Cancel),
+	})
 
 	keyboard := tg.NewReplyKeyboard(rows...)
 	keyboard.OneTimeKeyboard = true
@@ -41,7 +33,6 @@ func (s *VacationService) createUsersKeyboard(users access.UserIds) tg.ReplyKeyb
 	return keyboard
 }
 
-// Создает клавиатуру с датами
 func (s *VacationService) createDateKeyboard(dates []string) tg.ReplyKeyboardMarkup {
 	var rows [][]tg.KeyboardButton
 	var elemCountInRow int = 3
@@ -55,9 +46,8 @@ func (s *VacationService) createDateKeyboard(dates []string) tg.ReplyKeyboardMar
 		rows = append(rows, row)
 	}
 
-	// Добавляем кнопку отмены в последний ряд
 	rows = append(rows, []tg.KeyboardButton{
-		tg.NewKeyboardButton(ButtonTextConstants.Cancel),
+		tg.NewKeyboardButton(constants.ButtonTextConstants.Cancel),
 	})
 
 	keyboard := tg.NewReplyKeyboard(rows...)
@@ -65,7 +55,6 @@ func (s *VacationService) createDateKeyboard(dates []string) tg.ReplyKeyboardMar
 	return keyboard
 }
 
-// Создает клавиатуру с пользователями в отпуске
 func (s *VacationService) createVacationsListKeyboard() ([][]tg.KeyboardButton, error) {
 	var buttons [][]tg.KeyboardButton
 
@@ -78,31 +67,30 @@ func (s *VacationService) createVacationsListKeyboard() ([][]tg.KeyboardButton, 
 			// Добавляем две кнопки для каждого пользователя
 			buttons = append(buttons,
 				[]tg.KeyboardButton{
-					tg.NewKeyboardButton(fmt.Sprintf("%s %s", ButtonTextConstants.ReturnFromVacation, userName)),
-					tg.NewKeyboardButton(fmt.Sprintf("%s %s", ButtonTextConstants.ChangeVacation, userName)),
+					tg.NewKeyboardButton(fmt.Sprintf("%s %s", constants.ButtonTextConstants.ReturnFromVacation, userName)),
+					tg.NewKeyboardButton(fmt.Sprintf("%s %s", constants.ButtonTextConstants.ChangeVacation, userName)),
 				},
 			)
 		}
 	}
 
 	if len(buttons) > 0 {
-		buttons = append(buttons, []tg.KeyboardButton{tg.NewKeyboardButton(ButtonTextConstants.Cancel)})
+		buttons = append(buttons, []tg.KeyboardButton{tg.NewKeyboardButton(constants.ButtonTextConstants.Cancel)})
 	}
 
 	return buttons, nil
 }
 
-// GetDefaultKeyboard возвращает клавиатуру по умолчанию
-func (s *VacationService) GetDefaultKeyboard(userId int64) tg.ReplyKeyboardMarkup {
+func (s *VacationService) getDefaultKeyboard(userId int64) tg.ReplyKeyboardMarkup {
 	var defaultButtons []tg.KeyboardButton
 
 	// Показываем кнопки отпуска только ревьюерам
 	if access.HasVacationAccess(userId, *s.usersMap) {
 
 		if s.IsUserOnVacation(userId) {
-			defaultButtons = append(defaultButtons, tg.NewKeyboardButton(ButtonTextConstants.ReturnToWork))
+			defaultButtons = append(defaultButtons, tg.NewKeyboardButton(constants.ButtonTextConstants.ReturnToWork))
 		} else {
-			defaultButtons = append(defaultButtons, tg.NewKeyboardButton(ButtonTextConstants.TakeVacation))
+			defaultButtons = append(defaultButtons, tg.NewKeyboardButton(constants.ButtonTextConstants.TakeVacation))
 		}
 	}
 
@@ -115,7 +103,7 @@ func (s *VacationService) GetDefaultKeyboard(userId int64) tg.ReplyKeyboardMarku
 
 	keyboard := tg.NewReplyKeyboard(
 		tg.NewKeyboardButtonRow(defaultButtons...),
-		tg.NewKeyboardButtonRow(tg.NewKeyboardButton(ButtonTextConstants.Cancel)),
+		tg.NewKeyboardButtonRow(tg.NewKeyboardButton(constants.ButtonTextConstants.Cancel)),
 	)
 	keyboard.Selective = true
 	return keyboard

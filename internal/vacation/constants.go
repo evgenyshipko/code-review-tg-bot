@@ -1,37 +1,5 @@
 package vacation
 
-type ButtonText struct {
-	TakeVacation       string
-	ReturnFromVacation string
-	ChangeVacation     string
-	ReturnToWork       string
-	Cancel             string
-	VacationsList      string
-	VacationsStart     string
-}
-
-var ButtonTextConstants = ButtonText{
-	TakeVacation:       "🏃 Оформить отпуск",
-	ReturnFromVacation: "🔄 Вернуть из отпуска:",
-	ChangeVacation:     "📅 Изменить отпуск:",
-	ReturnToWork:       "💼 Выход на работу",
-	Cancel:             "❌ Закрыть",
-	VacationsList:      "📋 Список отпусков",
-	VacationsStart:     "➕ Отправить в отпуск",
-}
-
-func (b ButtonText) GetHashMap() map[string]bool {
-	return map[string]bool{
-		b.TakeVacation:       true,
-		b.ReturnFromVacation: true,
-		b.ChangeVacation:     true,
-		b.ReturnToWork:       true,
-		b.Cancel:             true,
-		b.VacationsList:      true,
-		b.VacationsStart:     true,
-	}
-}
-
 // Константы состояний админ-панели
 const (
 	AdminStateNone        = ""             // начальное состояние

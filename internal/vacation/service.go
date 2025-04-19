@@ -13,13 +13,15 @@ type VacationService struct {
 	storage  storage.Storage
 	bot      *tg.BotAPI
 	usersMap *access.UserMaps
+	users    *access.Users
 }
 
-func NewVacationService(storage storage.Storage, bot *tg.BotAPI, usersMap *access.UserMaps) *VacationService {
+func NewVacationService(storage storage.Storage, bot *tg.BotAPI, usersMap *access.UserMaps, users *access.Users) *VacationService {
 	return &VacationService{
 		storage:  storage,
 		bot:      bot,
 		usersMap: usersMap,
+		users:    users,
 	}
 }
 

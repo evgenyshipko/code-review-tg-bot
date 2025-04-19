@@ -26,8 +26,8 @@ func (s *VacationService) handleTextCommand(update tg.Update, bot *tg.BotAPI) (e
 	}
 
 	var commandMap = map[string]string{
-		"отпуск": ButtonTextConstants.TakeVacation,
-		"работа": ButtonTextConstants.ReturnToWork,
+		"отпуск": constants.ButtonTextConstants.TakeVacation,
+		"работа": constants.ButtonTextConstants.ReturnToWork,
 	}
 
 	if action, ok := commandMap[wordsFromMsg[1]]; ok {
@@ -35,7 +35,7 @@ func (s *VacationService) handleTextCommand(update tg.Update, bot *tg.BotAPI) (e
 		s.resetAdminState(update.Message.From.ID)
 
 		// Устанавливаем соответствующее состояние
-		if action == ButtonTextConstants.TakeVacation {
+		if action == constants.ButtonTextConstants.TakeVacation {
 			if s.IsUserOnVacation(update.Message.From.ID) {
 				returnDate := s.getVacationReturnDate(update.Message.From.ID)
 				msg := tg.NewMessage(update.Message.Chat.ID, fmt.Sprintf("@%s, Вы уже находитесь в отпуске до %s",
@@ -64,16 +64,23 @@ func (s *VacationService) handleTextCommand(update tg.Update, bot *tg.BotAPI) (e
 	return false
 }
 
-// Обрабатывает все команды, связанные с отпусками и админ-панелью
 func (s *VacationService) HandleCommand(update tg.Update, bot *tg.BotAPI) (executed bool) {
 	if update.Message == nil && !update.Message.IsCommand() {
 		return false
 	}
 
-	switch update.Message.Command() {
+	command := update.Message.Command()
+	if !access.IsUserHasAccessToCommand(update.Message.From.ID, command, *s.users) {
+		msg := tg.NewMessage(update.Message.Chat.ID, "У Вас нет доступа к данной команде")
+		msg.ReplyToMessageID = update.Message.MessageID
+		bot.Send(msg)
+		return true
+	}
+
+	switch command {
 	case constants.Start:
 		msg := tg.NewMessage(update.Message.Chat.ID, "Выберите команду:")
-		msg.ReplyMarkup = s.GetDefaultKeyboard(update.Message.From.ID)
+		msg.ReplyMarkup = s.getDefaultKeyboard(update.Message.From.ID)
 		msg.ReplyToMessageID = update.Message.MessageID
 
 		_, err := bot.Send(msg)
@@ -82,20 +89,6 @@ func (s *VacationService) HandleCommand(update tg.Update, bot *tg.BotAPI) (execu
 		}
 		return true
 	case constants.Test_vacation:
-		if !access.IsTester(update.Message.From.ID, *s.usersMap) {
-			msg := tg.NewMessage(update.Message.Chat.ID, "Команда доступна только для тестировщиков")
-			msg.ReplyToMessageID = update.Message.MessageID
-			bot.Send(msg)
-			return true
-		}
-
-		if !access.HasVacationAccess(update.Message.From.ID, *s.usersMap) {
-			msg := tg.NewMessage(update.Message.Chat.ID, "У вас нет доступа к этой команде")
-			msg.ReplyToMessageID = update.Message.MessageID
-			bot.Send(msg)
-			return true
-		}
-
 		if s.IsUserOnVacation(update.Message.From.ID) {
 			returnDate := s.getVacationReturnDate(update.Message.From.ID)
 			msg := tg.NewMessage(update.Message.Chat.ID, fmt.Sprintf("@%s, Вы уже находитесь в отпуске до %s",
@@ -123,16 +116,8 @@ func (s *VacationService) HandleCommand(update tg.Update, bot *tg.BotAPI) (execu
 		msg.ReplyToMessageID = update.Message.MessageID
 		bot.Send(msg)
 		return true
-
-	case constants.Rest, constants.Work:
-		if !access.HasVacationAccess(update.Message.From.ID, *s.usersMap) {
-			msg := tg.NewMessage(update.Message.Chat.ID, "У вас нет доступа к этой команде")
-			msg.ReplyToMessageID = update.Message.MessageID
-			bot.Send(msg)
-			return true
-		}
-
-		if update.Message.Command() == constants.Rest {
+	case constants.Rest:
+		{
 			// Сбрасываем состояние админ-панели
 			s.resetAdminState(update.Message.From.ID)
 
@@ -151,19 +136,21 @@ func (s *VacationService) HandleCommand(update tg.Update, bot *tg.BotAPI) (execu
 			s.storage.Set(fmt.Sprintf("user_state_%d", update.Message.From.ID), UserStateSelectingDate)
 			s.handleChangeVacationStatus(tg.Update{
 				Message: &tg.Message{
-					Text:      ButtonTextConstants.TakeVacation,
+					Text:      constants.ButtonTextConstants.TakeVacation,
 					From:      update.Message.From,
 					Chat:      update.Message.Chat,
 					MessageID: update.Message.MessageID,
 				},
 			}, bot)
 			return true
-		} else {
+		}
+	case constants.Work:
+		{
 			// Сбрасываем все состояния
 			s.ResetAllStates(update.Message.From.ID)
 			s.handleChangeVacationStatus(tg.Update{
 				Message: &tg.Message{
-					Text:      ButtonTextConstants.ReturnToWork,
+					Text:      constants.ButtonTextConstants.ReturnToWork,
 					From:      update.Message.From,
 					Chat:      update.Message.Chat,
 					MessageID: update.Message.MessageID,
@@ -171,19 +158,10 @@ func (s *VacationService) HandleCommand(update tg.Update, bot *tg.BotAPI) (execu
 			}, bot)
 			return true
 		}
-	case constants.Vacations, constants.Vacations_start:
-		if !access.HasAdminAccess(update.Message.From.ID, *s.usersMap) {
-			msg := tg.NewMessage(update.Message.Chat.ID, "У вас нет доступа к этой команде")
-			msg.ReplyToMessageID = update.Message.MessageID
-			bot.Send(msg)
-			return true
-		}
-
-		if update.Message.Command() == constants.Vacations {
-			return s.handleVacationsCommand(update, bot)
-		} else {
-			return s.handleAdminCommand(update, bot)
-		}
+	case constants.Vacations:
+		return s.handleVacationsCommand(update, bot)
+	case constants.Vacations_start:
+		return s.handleAdminCommand(update, bot)
 	}
 
 	return false
@@ -198,33 +176,33 @@ func (s *VacationService) handleButtonPress(update tg.Update, bot *tg.BotAPI) (e
 	var userState string
 	s.storage.Get(fmt.Sprintf("user_state_%d", update.Message.From.ID), &userState)
 
-	if strings.HasPrefix(update.Message.Text, ButtonTextConstants.ReturnFromVacation) {
-		userName := strings.TrimPrefix(update.Message.Text, ButtonTextConstants.ReturnFromVacation)
+	if strings.HasPrefix(update.Message.Text, constants.ButtonTextConstants.ReturnFromVacation) {
+		userName := strings.TrimPrefix(update.Message.Text, constants.ButtonTextConstants.ReturnFromVacation)
 		return s.handleReturnFromVacation(update, bot, userName)
 	}
 
-	if strings.HasPrefix(update.Message.Text, ButtonTextConstants.ChangeVacation) {
-		userName := strings.TrimPrefix(update.Message.Text, ButtonTextConstants.ChangeVacation)
+	if strings.HasPrefix(update.Message.Text, constants.ButtonTextConstants.ChangeVacation) {
+		userName := strings.TrimPrefix(update.Message.Text, constants.ButtonTextConstants.ChangeVacation)
 		return s.handleChangeVacation(update, bot, userName)
 	}
 
 	switch update.Message.Text {
-	case ButtonTextConstants.VacationsList:
+	case constants.ButtonTextConstants.VacationsList:
 		if !access.IsAdmin(update.Message.From.ID, *s.usersMap) {
 			return false
 		}
 		return s.handleVacationsCommand(update, bot)
-	case ButtonTextConstants.VacationsStart:
+	case constants.ButtonTextConstants.VacationsStart:
 		if !access.IsAdmin(update.Message.From.ID, *s.usersMap) {
 			return false
 		}
 		return s.handleAdminCommand(update, bot)
-	case ButtonTextConstants.TakeVacation, ButtonTextConstants.ChangeVacation:
+	case constants.ButtonTextConstants.TakeVacation, constants.ButtonTextConstants.ChangeVacation:
 		// Сбрасываем состояние админ-панели
 		s.resetAdminState(update.Message.From.ID)
 		s.handleChangeVacationStatus(update, bot)
 		return true
-	case ButtonTextConstants.ReturnToWork, ButtonTextConstants.Cancel:
+	case constants.ButtonTextConstants.ReturnToWork, constants.ButtonTextConstants.Cancel:
 		// Сбрасываем все состояния
 		s.ResetAllStates(update.Message.From.ID)
 		s.handleChangeVacationStatus(update, bot)
@@ -245,7 +223,7 @@ func (s *VacationService) handleButtonPress(update tg.Update, bot *tg.BotAPI) (e
 // Обрабатывает изменение статуса отпуска
 func (s *VacationService) handleChangeVacationStatus(update tg.Update, bot *tg.BotAPI) {
 	switch update.Message.Text {
-	case ButtonTextConstants.TakeVacation, ButtonTextConstants.ChangeVacation:
+	case constants.ButtonTextConstants.TakeVacation, constants.ButtonTextConstants.ChangeVacation:
 		// Показываем календарь на клавиатуре
 		dates := s.generateVacationDates()
 		keyboard := s.createDateKeyboard(dates)
@@ -262,7 +240,7 @@ func (s *VacationService) handleChangeVacationStatus(update tg.Update, bot *tg.B
 			logger.Instance.Error("Ошибка отправки календаря", "error", err)
 		}
 
-	case ButtonTextConstants.ReturnToWork:
+	case constants.ButtonTextConstants.ReturnToWork:
 		// Проверяем, находится ли пользователь в отпуске
 		if !s.IsUserOnVacation(update.Message.From.ID) {
 			msg := tg.NewMessage(update.Message.Chat.ID, fmt.Sprintf("@%s, Вы не находитесь в отпуске", update.Message.From.UserName))
@@ -289,7 +267,7 @@ func (s *VacationService) handleChangeVacationStatus(update tg.Update, bot *tg.B
 			logger.Instance.Error("Ошибка отправки статуса", "error", err)
 		}
 
-	case ButtonTextConstants.Cancel:
+	case constants.ButtonTextConstants.Cancel:
 		// Сбрасываем состояние пользователя
 		s.storage.Set(fmt.Sprintf("user_state_%d", update.Message.From.ID), UserStateNone)
 

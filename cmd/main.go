@@ -61,7 +61,7 @@ func main() {
 		panic(err)
 	}
 
-	vacationService := vacation.NewVacationService(storageInstance, bot, userMaps)
+	vacationService := vacation.NewVacationService(storageInstance, bot, userMaps, &users)
 	reviewersService := reviewers.NewReviewersService(storageInstance, vacationService)
 	mergeRequestHandler := mergeRequest.NewMergeRequestService(bot, reviewersService)
 

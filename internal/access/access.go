@@ -1,9 +1,11 @@
 package access
 
 import (
+	"code-review-tg-bot/internal/constants"
 	"code-review-tg-bot/internal/logger"
 	"encoding/json"
 	"os"
+	"slices"
 )
 
 type UserIds map[int64]string
@@ -15,17 +17,9 @@ type UserMaps struct {
 	TestersIdsMap   UserIds
 }
 
-type UserRole string
-
-const (
-	Tester   UserRole = "Tester"
-	Reviewer UserRole = "Reviewer"
-	Admin    UserRole = "Admin"
-)
-
 type UserData struct {
 	Name  string
-	Roles []UserRole
+	Roles []constants.UserRole
 }
 
 type Users map[int64]UserData
@@ -49,13 +43,13 @@ func MapUserToRoles() (Users, error) {
 	}
 
 	users := Users{}
-	addUsers(users, ReviewersIdsMap, Reviewer)
-	addUsers(users, AdminsIdsMap, Admin)
-	addUsers(users, TestersIdsMap, Tester)
+	addUsers(users, ReviewersIdsMap, constants.Reviewer)
+	addUsers(users, AdminsIdsMap, constants.Admin)
+	addUsers(users, TestersIdsMap, constants.Tester)
 	return users, nil
 }
 
-func addUsers(users Users, userIds UserIds, role UserRole) {
+func addUsers(users Users, userIds UserIds, role constants.UserRole) {
 	for id, name := range userIds {
 		_, ok := users[id]
 		if ok {
@@ -66,7 +60,7 @@ func addUsers(users Users, userIds UserIds, role UserRole) {
 		} else {
 			users[id] = UserData{
 				Name:  name,
-				Roles: []UserRole{role},
+				Roles: []constants.UserRole{role},
 			}
 		}
 	}
@@ -102,9 +96,20 @@ func InitUserMaps() (*UserMaps, error) {
 func IsUserHasAccess(userId int64, users Users) bool {
 	if val, ok := users[userId]; ok {
 		for _, role := range val.Roles {
-			if role == Reviewer || role == Admin {
+			if role == constants.Reviewer || role == constants.Admin {
 				return true
 			}
+		}
+	}
+	return false
+}
+
+func IsUserHasAccessToCommand(userId int64, command string, users Users) bool {
+	availableRoles := CommandToRoleMapping[command]
+	usersRoles := users[userId].Roles
+	for _, role := range usersRoles {
+		if slices.Contains(availableRoles, role) {
+			return true
 		}
 	}
 	return false
@@ -146,6 +151,11 @@ func HasAdminAccess(userId int64, maps UserMaps) bool {
 	return IsAdmin(userId, maps)
 }
 
-func IsTester(userId int64, maps UserMaps) bool {
-	return isUserInMap(userId, maps.TestersIdsMap)
+var CommandToRoleMapping = map[string][]constants.UserRole{
+	constants.Start:           []constants.UserRole{constants.Admin, constants.Tester, constants.Reviewer},
+	constants.Rest:            []constants.UserRole{constants.Reviewer},
+	constants.Work:            []constants.UserRole{constants.Reviewer},
+	constants.Vacations:       []constants.UserRole{constants.Admin},
+	constants.Vacations_start: []constants.UserRole{constants.Admin},
+	constants.Test_vacation:   []constants.UserRole{constants.Tester, constants.Admin},
 }

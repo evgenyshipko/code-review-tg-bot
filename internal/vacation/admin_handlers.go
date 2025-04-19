@@ -1,7 +1,7 @@
 package vacation
 
 import (
-	"code-review-tg-bot/internal/access"
+	"code-review-tg-bot/internal/constants"
 	"code-review-tg-bot/internal/logger"
 	"fmt"
 	"strings"
@@ -15,7 +15,7 @@ func (s *VacationService) HandleAdminPanel(update tg.Update, bot *tg.BotAPI, sta
 	// Сбрасываем состояние пользователя при работе с админ-панелью
 	s.ResetAllStates(update.Message.From.ID)
 
-	if update.Message.Text == ButtonTextConstants.Cancel {
+	if update.Message.Text == constants.ButtonTextConstants.Cancel {
 		// Сбрасываем состояние админ-панели
 		s.resetAdminState(update.Message.From.ID)
 
@@ -80,7 +80,7 @@ func (s *VacationService) handleAdminPickUser(update tg.Update, bot *tg.BotAPI, 
 // Обрабатывает действия в админ-панели
 func (s *VacationService) handleAdminActionsForUser(update tg.Update, bot *tg.BotAPI, state AdminPanelState) {
 	switch update.Message.Text {
-	case ButtonTextConstants.TakeVacation, ButtonTextConstants.ChangeVacation:
+	case constants.ButtonTextConstants.TakeVacation, constants.ButtonTextConstants.ChangeVacation:
 		// Показываем календарь
 		dates := s.generateVacationDates()
 		keyboard := s.createDateKeyboard(dates)
@@ -95,7 +95,7 @@ func (s *VacationService) handleAdminActionsForUser(update tg.Update, bot *tg.Bo
 
 		bot.Send(msg)
 
-	case ButtonTextConstants.ReturnToWork:
+	case constants.ButtonTextConstants.ReturnToWork:
 		// Проверяем, находится ли пользователь в отпуске
 		if !s.IsUserOnVacation(update.Message.From.ID) {
 			msg := tg.NewMessage(update.Message.Chat.ID, "Пользователь не находится в отпуске")
@@ -199,14 +199,6 @@ func (s *VacationService) handleAdminSetVacation(update tg.Update, bot *tg.BotAP
 
 // Обрабатывает команду /admin
 func (s *VacationService) handleAdminCommand(update tg.Update, bot *tg.BotAPI) bool {
-	// Проверяем, является ли пользователь админом
-	if !access.IsAdmin(update.Message.From.ID, *s.usersMap) {
-		msg := tg.NewMessage(update.Message.Chat.ID, "Эта команда доступна только администраторам")
-		msg.ReplyToMessageID = update.Message.MessageID
-		bot.Send(msg)
-		return true
-	}
-
 	allUsers := s.usersMap.ReviewersIdsMap
 
 	keyboard := s.createUsersKeyboard(allUsers)
@@ -229,10 +221,6 @@ func (s *VacationService) handleAdminCommand(update tg.Update, bot *tg.BotAPI) b
 }
 
 func (s *VacationService) handleReturnFromVacation(update tg.Update, bot *tg.BotAPI, userNameFromEnv string) bool {
-	if !access.IsAdmin(update.Message.From.ID, *s.usersMap) {
-		return false
-	}
-
 	allUsers := s.usersMap.ReviewersIdsMap
 	// Ищем пользователя по имени среди тех, кто в отпуске
 	foundUserId := s.findUserIdByName(allUsers, userNameFromEnv)
@@ -247,10 +235,6 @@ func (s *VacationService) handleReturnFromVacation(update tg.Update, bot *tg.Bot
 }
 
 func (s *VacationService) handleChangeVacation(update tg.Update, bot *tg.BotAPI, userName string) bool {
-	if !access.IsAdmin(update.Message.From.ID, *s.usersMap) {
-		return false
-	}
-
 	allUsers := s.usersMap.ReviewersIdsMap
 
 	foundUserId := s.findUserIdByName(allUsers, userName)
@@ -279,12 +263,6 @@ func (s *VacationService) handleChangeVacation(update tg.Update, bot *tg.BotAPI,
 
 // Обрабатывает команду /vacations
 func (s *VacationService) handleVacationsCommand(update tg.Update, bot *tg.BotAPI) bool {
-	if !access.IsAdmin(update.Message.From.ID, *s.usersMap) {
-		msg := tg.NewMessage(update.Message.Chat.ID, "Эта команда доступна только администраторам")
-		bot.Send(msg)
-		return true
-	}
-
 	message, err := s.GetVacationsList()
 	if err != nil {
 		logger.Instance.Error("Ошибка при получении списка отпусков", "error", err)
