@@ -2,11 +2,12 @@ package main
 
 import (
 	"code-review-tg-bot/internal/access"
+	"code-review-tg-bot/internal/constants"
 	"code-review-tg-bot/internal/logger"
 	"code-review-tg-bot/internal/mergeRequest"
 	"code-review-tg-bot/internal/reviewers"
 	"code-review-tg-bot/internal/storage"
-	"code-review-tg-bot/internal/utils"
+	"code-review-tg-bot/internal/stories"
 	"code-review-tg-bot/internal/vacation"
 	"fmt"
 	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -28,17 +29,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	userMaps, err := access.InitUserMaps()
+	users, err := access.MapUserToRoles()
+	if err != nil {
+		logger.Instance.Warnw("access.MapUserToRoles", "error", err)
+	}
+	logger.Instance.Info(users)
+
+	reviewersMap, err := access.GetReviewersMap()
 	if err != nil {
 		logger.Instance.Errorw("Ошибка инициализации списков пользователей", "error", err)
 		os.Exit(1)
-	}
-
-	hash, message, err := utils.GetLastCommitInfo()
-	if err != nil {
-		logger.Instance.Errorw("Ошибка получения информации о последнем коммите", "error", err)
-	} else {
-		logger.Instance.Infow("Бот стартовал с последним коммитом", "hash", hash, "message", message)
 	}
 
 	BotToken := os.Getenv("BOT_TOKEN")
@@ -54,11 +54,14 @@ func main() {
 		panic(err)
 	}
 
-	vacationService := vacation.NewVacationService(storageInstance, bot, userMaps)
+	vacationService := vacation.NewVacationService(storageInstance, bot, reviewersMap, &users)
 	reviewersService := reviewers.NewReviewersService(storageInstance, vacationService)
-	mergeRequestHandler := mergeRequest.NewMergeRequestService(bot, reviewersService)
+	mergeRequestService := mergeRequest.NewMergeRequestService(bot, reviewersService)
 
-	if err := setUpBotCommands(bot, vacationService.GetCommands()); err != nil {
+	storiesArr := []stories.Story{*stories.TakeVacationStory, *stories.ReturnToWorkStory, *stories.ShowVacationListStory, *stories.SendToVacationStory}
+	storyService := stories.NewStoryService(storageInstance, storiesArr, vacationService, bot, &users, reviewersMap)
+
+	if err := setUpBotCommands(bot); err != nil {
 		logger.Instance.Error("Ошибка настройки команд бота", "error", err)
 		os.Exit(1)
 	}
@@ -71,7 +74,7 @@ func main() {
 
 	// ЗАПОМНИТЬ: цикл работает пока канал не закрыт
 	for update := range updates {
-		mainLoopFunc(update, bot, vacationService, mergeRequestHandler, userMaps)
+		userInputHandler(update, bot, mergeRequestService, storyService)
 	}
 }
 
@@ -79,9 +82,9 @@ func main() {
 //TODO: избавиться от переменной GITLAB_DOMAIN?
 //TODO: кеширование ручек/истории ревью во внешнем источнике (редис)
 //TODO: сделать чтобы бот проставлял ревьюверов в гитлабе
-//TODO: предусмотреть возможность передачи множества сервисов в mainLoopFunc
 
-func mainLoopFunc(update tg.Update, bot *tg.BotAPI, vs *vacation.VacationService, mr *mergeRequest.MergeRequestService, userMaps *access.UserMaps) {
+// TODO: вынести из main
+func userInputHandler(update tg.Update, bot *tg.BotAPI, mr *mergeRequest.MergeRequestService, storyService *stories.StoryService) {
 	defer func() {
 		if r := recover(); r != nil {
 			logger.Instance.Error("Паника перехвачена", "error", r)
@@ -89,24 +92,46 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI, vs *vacation.VacationService
 		}
 	}()
 
-	if !access.IsUserHasAccess(*update.Message, userMaps) {
+	if !access.IsUserHasAccess(update.Message.From.ID, *storyService.Users) {
 		return
 	}
 
-	logger.Instance.Infow(fmt.Sprintf("[%s] %s", update.Message.From.UserName, update.Message.Text))
+	userId := update.Message.From.ID
+	message := update.Message
 
-	// Обработка отпусков
-	if vs.HandleUpdate(update, bot) {
+	if message != nil {
+		logger.Instance.Infow(fmt.Sprintf("[%s] %s", message.From.UserName, message.Text))
+	}
+
+	// Если у пользователя есть активная история, то работаем в ее рамках
+	executed := storyService.HandleCurrentStories(update, userId)
+	if executed {
 		return
 	}
 
-	// Обработка команд
-	if update.Message.IsCommand() {
-		handleDefaultCommands(update, bot, vs)
+	if message.IsCommand() {
+		command := constants.BotCommand(message.Command())
+		if !access.IsUserHasAccessToCommand(update.Message.From.ID, command, *storyService.Users) {
+			msg := tg.NewMessage(update.Message.Chat.ID, "У Вас нет доступа к данной команде")
+			msg.ReplyToMessageID = update.Message.MessageID
+			bot.Send(msg)
+			return
+		}
+
+		switch command {
+		case constants.TakeVacation:
+			storyService.ExecuteStory(stories.TakeVacationStory, nil, update, userId)
+		case constants.ReturnToWork:
+			storyService.ExecuteStory(stories.ReturnToWorkStory, nil, update, userId)
+		case constants.VacationsList:
+			storyService.ExecuteStory(stories.ShowVacationListStory, nil, update, userId)
+		case constants.SendToVacation:
+			storyService.ExecuteStory(stories.SendToVacationStory, nil, update, userId)
+		}
 		return
 	}
 
-	if !strings.Contains(update.Message.Text, "@"+bot.Self.UserName) {
+	if !strings.Contains(message.Text, "@"+bot.Self.UserName) {
 		return
 	}
 
@@ -116,6 +141,7 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI, vs *vacation.VacationService
 	}
 }
 
+// TODO: вынести из main и прокидывать методом в сервисы
 func sendNewMessage(message string, bot *tg.BotAPI, update tg.Update) {
 	msg := tg.NewMessage(update.Message.Chat.ID, message)
 	msg.ParseMode = tg.ModeHTML
@@ -126,38 +152,9 @@ func sendNewMessage(message string, bot *tg.BotAPI, update tg.Update) {
 	}
 }
 
-// Обработка команд
-func handleDefaultCommands(update tg.Update, bot *tg.BotAPI, vacationService *vacation.VacationService) {
-	if update.Message == nil {
-		return
-	}
-
-	// Базовые команды
-	switch update.Message.Command() {
-	case "start":
-		msg := tg.NewMessage(update.Message.Chat.ID, "Выберите команду:")
-		msg.ReplyMarkup = vacationService.GetDefaultKeyboard(update.Message.From.ID)
-		msg.ReplyToMessageID = update.Message.MessageID
-
-		_, err := bot.Send(msg)
-		if err != nil {
-			logger.Instance.Error("Ошибка отправки клавиатуры", "error", err)
-		}
-	}
-}
-
-func setUpBotCommands(bot *tg.BotAPI, vacationCommands []tg.BotCommand) error {
-	// Базовые команды
-	commands := []tg.BotCommand{
-		{
-			Command:     "start",
-			Description: "Показать клавиатуру с командами",
-		},
-	}
-
-	commands = append(commands, vacationCommands...)
-
-	_, err := bot.Request(tg.NewSetMyCommands(commands...))
+// TODO: вынести из main
+func setUpBotCommands(bot *tg.BotAPI) error {
+	_, err := bot.Request(tg.NewSetMyCommands(constants.BotCommands...))
 	if err != nil {
 		return fmt.Errorf("ошибка установки команд бота: %w", err)
 	}

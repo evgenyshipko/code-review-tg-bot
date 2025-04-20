@@ -37,7 +37,7 @@ func (s *MemoryStorage) Set(key string, value interface{}) {
 	s.data[key] = memoryData{
 		Value: string(result),
 	}
-	logger.Instance.Debugw("Значение сохранено в Memory", "key", key)
+	//logger.Instance.Debugw("Значение сохранено в Memory", "key", key)
 }
 
 func (s *MemoryStorage) SetWithTTL(key string, value interface{}, ttl time.Duration) error {
@@ -71,7 +71,6 @@ func (s *MemoryStorage) Get(key string, result interface{}) bool {
 		return false
 	}
 
-	// Проверка срока истечения
 	if data.ExpireAt != nil && time.Now().After(*data.ExpireAt) {
 		delete(s.data, key)
 		logger.Instance.Debugw("Значение удалено по истечению TTL", "key", key)
@@ -84,7 +83,7 @@ func (s *MemoryStorage) Get(key string, result interface{}) bool {
 		return false
 	}
 
-	logger.Instance.Debugw("Значение получено из Memory", "key", key)
+	//logger.Instance.Debugw("Значение получено из Memory", "key", key)
 	return true
 }
 
@@ -92,5 +91,5 @@ func (s *MemoryStorage) Delete(key string) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	delete(s.data, key)
-	logger.Instance.Debugw("Значение удалено из Memory", "key", key)
+	//logger.Instance.Debugw("Значение удалено из Memory", "key", key)
 }

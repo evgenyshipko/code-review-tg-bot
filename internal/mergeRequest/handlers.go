@@ -35,12 +35,10 @@ func (s *MergeRequestService) Handle(update tg.Update) error {
 	return s.sendMessage(message, update)
 }
 
-// Извлекает все URLы из текста сообщения
 func (s *MergeRequestService) extractUrls(text string) []string {
 	return xurls.Strict.FindAllString(text, -1)
 }
 
-// Обрабатывает список URLов мерж реквестов
 func (s *MergeRequestService) processMergeRequests(urls []string) ([]DataExtended, int, error) {
 	var mergeRequests []DataExtended
 	totalRows := 0
@@ -57,7 +55,6 @@ func (s *MergeRequestService) processMergeRequests(urls []string) ([]DataExtende
 	return mergeRequests, totalRows, nil
 }
 
-// Обрабатывает один мерж реквест
 func (s *MergeRequestService) processSingleMergeRequest(url string) (DataExtended, int, error) {
 	mr, err := GetDataByUrl(url)
 	if err != nil {
