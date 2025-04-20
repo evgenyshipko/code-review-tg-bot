@@ -7,7 +7,7 @@ import (
 	"code-review-tg-bot/internal/mergeRequest"
 	"code-review-tg-bot/internal/reviewers"
 	"code-review-tg-bot/internal/storage"
-	"code-review-tg-bot/internal/utils"
+	"code-review-tg-bot/internal/stories"
 	"code-review-tg-bot/internal/vacation"
 	"fmt"
 	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -35,17 +35,11 @@ func main() {
 	}
 	logger.Instance.Info(users)
 
+	// TODO: избавиться от userMaps
 	userMaps, err := access.InitUserMaps()
 	if err != nil {
 		logger.Instance.Errorw("Ошибка инициализации списков пользователей", "error", err)
 		os.Exit(1)
-	}
-
-	hash, message, err := utils.GetLastCommitInfo()
-	if err != nil {
-		logger.Instance.Errorw("Ошибка получения информации о последнем коммите", "error", err)
-	} else {
-		logger.Instance.Infow("Бот стартовал с последним коммитом", "hash", hash, "message", message)
 	}
 
 	BotToken := os.Getenv("BOT_TOKEN")
@@ -63,9 +57,10 @@ func main() {
 
 	vacationService := vacation.NewVacationService(storageInstance, bot, userMaps, &users)
 	reviewersService := reviewers.NewReviewersService(storageInstance, vacationService)
-	mergeRequestHandler := mergeRequest.NewMergeRequestService(bot, reviewersService)
+	mergeRequestService := mergeRequest.NewMergeRequestService(bot, reviewersService)
+	storyService := stories.NewStoryService(storageInstance, []stories.Story{*stories.TakeVacationStory, *stories.ReturnToWorkStory, *stories.ShowVacationListStory, *stories.SendToVacationStory}, vacationService, bot, &users)
 
-	if err := setUpBotCommands(bot, vacationService.GetCommands()); err != nil {
+	if err := setUpBotCommands(bot, constants.BotCommands); err != nil {
 		logger.Instance.Error("Ошибка настройки команд бота", "error", err)
 		os.Exit(1)
 	}
@@ -78,7 +73,10 @@ func main() {
 
 	// ЗАПОМНИТЬ: цикл работает пока канал не закрыт
 	for update := range updates {
-		mainLoopFunc(update, bot, vacationService, mergeRequestHandler, &users)
+		if !access.IsUserHasAccess(update.Message.From.ID, users) {
+			return
+		}
+		mainLoopFunc(update, bot, mergeRequestService, storyService)
 	}
 }
 
@@ -88,7 +86,8 @@ func main() {
 //TODO: сделать чтобы бот проставлял ревьюверов в гитлабе
 //TODO: предусмотреть возможность передачи множества сервисов в mainLoopFunc
 
-func mainLoopFunc(update tg.Update, bot *tg.BotAPI, vs *vacation.VacationService, mr *mergeRequest.MergeRequestService, users *access.Users) {
+// TODO: вынести из main
+func mainLoopFunc(update tg.Update, bot *tg.BotAPI, mr *mergeRequest.MergeRequestService, storyService *stories.StoryService) {
 	defer func() {
 		if r := recover(); r != nil {
 			logger.Instance.Error("Паника перехвачена", "error", r)
@@ -96,23 +95,43 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI, vs *vacation.VacationService
 		}
 	}()
 
-	logger.Instance.Infow("update.InlineQuery", "update.CallbackQuery", update.CallbackQuery)
+	userId := update.Message.From.ID
+	message := update.Message
 
-	if update.Message == nil {
+	if message != nil {
+		logger.Instance.Infow(fmt.Sprintf("[%s] %s", message.From.UserName, message.Text))
+	}
+
+	executed := storyService.HandleCurrentStories(update, userId)
+	if executed {
 		return
 	}
 
-	if !access.IsUserHasAccess(update.Message.From.ID, *users) {
+	if message.IsCommand() {
+
+		command := constants.BotCommand(message.Command())
+		if !access.IsUserHasAccessToCommand(update.Message.From.ID, command, *storyService.Users) {
+			msg := tg.NewMessage(update.Message.Chat.ID, "У Вас нет доступа к данной команде")
+			msg.ReplyToMessageID = update.Message.MessageID
+			bot.Send(msg)
+			return
+		}
+
+		switch command {
+		case constants.TakeVacation:
+
+			storyService.ExecuteStory(stories.TakeVacationStory, nil, update, userId)
+		case constants.ReturnToWork:
+			storyService.ExecuteStory(stories.ReturnToWorkStory, nil, update, userId)
+		case constants.VacationsList:
+			storyService.ExecuteStory(stories.ShowVacationListStory, nil, update, userId)
+		case constants.SendToVacation:
+			storyService.ExecuteStory(stories.SendToVacationStory, nil, update, userId)
+		}
 		return
 	}
 
-	logger.Instance.Infow(fmt.Sprintf("[%s] %s", update.Message.From.UserName, update.Message.Text))
-
-	if vs.HandleUpdate(update, bot) {
-		return
-	}
-
-	if !strings.Contains(update.Message.Text, "@"+bot.Self.UserName) {
+	if !strings.Contains(message.Text, "@"+bot.Self.UserName) {
 		return
 	}
 
@@ -122,6 +141,7 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI, vs *vacation.VacationService
 	}
 }
 
+// TODO: вынести из main и прокидывать методом в сервисы
 func sendNewMessage(message string, bot *tg.BotAPI, update tg.Update) {
 	msg := tg.NewMessage(update.Message.Chat.ID, message)
 	msg.ParseMode = tg.ModeHTML
@@ -132,18 +152,9 @@ func sendNewMessage(message string, bot *tg.BotAPI, update tg.Update) {
 	}
 }
 
+// TODO: вынести из main
 func setUpBotCommands(bot *tg.BotAPI, vacationCommands []tg.BotCommand) error {
-	// Базовые команды
-	commands := []tg.BotCommand{
-		{
-			Command:     constants.Start,
-			Description: "Показать клавиатуру с командами",
-		},
-	}
-
-	commands = append(commands, vacationCommands...)
-
-	_, err := bot.Request(tg.NewSetMyCommands(commands...))
+	_, err := bot.Request(tg.NewSetMyCommands(vacationCommands...))
 	if err != nil {
 		return fmt.Errorf("ошибка установки команд бота: %w", err)
 	}

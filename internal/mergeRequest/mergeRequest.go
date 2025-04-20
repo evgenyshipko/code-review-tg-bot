@@ -52,7 +52,6 @@ func GetDataByUrl(url string) (DataExtended, error) {
 	return DataExtended{mergeRequestData, stats}, nil
 }
 
-// Вычисляет статистику мр-а
 func getStats(diffs []requests.MergeRequestDiff) (requests.MergeRequestStats, error) {
 	mergeRequestStats := requests.MergeRequestStats{}
 	ignoredPaths := getIgnoredPaths()
@@ -75,7 +74,6 @@ func getStats(diffs []requests.MergeRequestDiff) (requests.MergeRequestStats, er
 	return mergeRequestStats, nil
 }
 
-// Загружает список путей из IGNORE_PATH для игнорирования
 func getIgnoredPaths() []string {
 	ignorePaths := os.Getenv("IGNORE_PATHS")
 	if ignorePaths == "" {

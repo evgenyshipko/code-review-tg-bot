@@ -8,113 +8,68 @@ import (
 	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-type CallbackActions string
-
-const (
-	PickUser               CallbackActions = "pick_user"
-	CancelUser             CallbackActions = "cancel_user"
-	PickDate               CallbackActions = "pick_date"
-	CancelDate             CallbackActions = "cancel_date"
-	UserReturnFromVacation CallbackActions = "user_return_from_vacation"
-	UserChangeVacation     CallbackActions = "user_change_vacation"
-	CancelVacationList     CallbackActions = "cancel_vacation_list"
-	ReturnToWork           CallbackActions = "return_to_work"
-	TakeVacation           CallbackActions = "take_vacation"
-	VacationList           CallbackActions = "employees_list"
-	SendToVacation         CallbackActions = "send_to_vacation"
-	Cancel                 CallbackActions = "cancel"
-)
-
-func (s *VacationService) createUsersKeyboard(users access.UserIds) tg.InlineKeyboardMarkup {
-	var rows [][]tg.InlineKeyboardButton
+func (s *VacationService) CreateUsersKeyboard(users access.UserIds) tg.ReplyKeyboardMarkup {
+	var rows [][]tg.KeyboardButton
 
 	for userId, userNameFromEnv := range users {
-		// Пропускаем пользователей, которые уже в отпуске
 		if s.IsUserOnVacation(userId) {
 			continue
 		}
 
-		rows = append(rows, []tg.InlineKeyboardButton{
-			tg.NewInlineKeyboardButtonData(fmt.Sprintf("👤 %s", userNameFromEnv), string(PickUser)),
+		rows = append(rows, []tg.KeyboardButton{
+			//TODO: избавиться от логики на префиксах
+			tg.NewKeyboardButton(fmt.Sprintf("👤 %s", userNameFromEnv)),
 		})
 	}
 
-	rows = append(rows, []tg.InlineKeyboardButton{
-		tg.NewInlineKeyboardButtonData(constants.ButtonTextConstants.Cancel, string(CancelUser)),
+	rows = append(rows, []tg.KeyboardButton{
+		tg.NewKeyboardButton(constants.ButtonTextConstants.Cancel),
 	})
 
-	keyboard := tg.NewInlineKeyboardMarkup(rows...)
+	keyboard := tg.NewReplyKeyboard(rows...)
 
 	return keyboard
 }
 
-func (s *VacationService) createDateKeyboard(dates []string) tg.InlineKeyboardMarkup {
-	var rows [][]tg.InlineKeyboardButton
+func CreateDateKeyboard(dates []string) tg.ReplyKeyboardMarkup {
+	var rows [][]tg.KeyboardButton
 	var elemCountInRow int = 3
 
-	// Создаем ряды по 3 кнопки в каждом
 	for i := 0; i < len(dates); i += elemCountInRow {
-		var row []tg.InlineKeyboardButton
+		var row []tg.KeyboardButton
 		for j := 0; j < elemCountInRow && i+j < len(dates); j++ {
-			row = append(row, tg.NewInlineKeyboardButtonData(dates[i+j], string(PickDate)))
+			row = append(row, tg.NewKeyboardButton(dates[i+j]))
 		}
 		rows = append(rows, row)
 	}
 
-	rows = append(rows, []tg.InlineKeyboardButton{
-		tg.NewInlineKeyboardButtonData(constants.ButtonTextConstants.Cancel, string(CancelDate)),
+	rows = append(rows, []tg.KeyboardButton{
+		tg.NewKeyboardButton(constants.ButtonTextConstants.Cancel),
 	})
 
-	keyboard := tg.NewInlineKeyboardMarkup(rows...)
+	keyboard := tg.NewReplyKeyboard(rows...)
 	return keyboard
 }
 
-func (s *VacationService) createVacationsListKeyboard() ([][]tg.InlineKeyboardButton, error) {
-	var buttons [][]tg.InlineKeyboardButton
+func (s *VacationService) CreateVacationsListKeyboard() ([][]tg.KeyboardButton, error) {
+	var buttons [][]tg.KeyboardButton
 
-	allUsers := s.usersMap.ReviewersIdsMap
+	allUsers := s.UsersMap.ReviewersIdsMap
 
 	for userId, userName := range allUsers {
 		if s.IsUserOnVacation(userId) {
 			buttons = append(buttons,
-				[]tg.InlineKeyboardButton{
-					tg.NewInlineKeyboardButtonData(fmt.Sprintf("%s %s", constants.ButtonTextConstants.ReturnFromVacation, userName), string(UserReturnFromVacation)),
-					tg.NewInlineKeyboardButtonData(fmt.Sprintf("%s %s", constants.ButtonTextConstants.ChangeVacation, userName), string(UserChangeVacation)),
+				[]tg.KeyboardButton{
+					tg.NewKeyboardButton(fmt.Sprintf("%s %s", constants.ButtonTextConstants.ReturnFromVacation, userName)),
+					tg.NewKeyboardButton(fmt.Sprintf("%s %s", constants.ButtonTextConstants.ChangeVacation, userName)),
 				},
 			)
 		}
 	}
 
 	if len(buttons) > 0 {
-		buttons = append(buttons, []tg.InlineKeyboardButton{tg.NewInlineKeyboardButtonData(constants.ButtonTextConstants.Cancel, string(CancelVacationList))})
+		buttons = append(buttons, []tg.KeyboardButton{tg.NewKeyboardButton(constants.ButtonTextConstants.Cancel)})
 	}
 
 	return buttons, nil
-}
-
-func (s *VacationService) getDefaultKeyboard(userId int64) tg.InlineKeyboardMarkup {
-	var defaultButtons []tg.InlineKeyboardButton
-
-	// Показываем кнопки отпуска только ревьюерам
-	if access.HasVacationAccess(userId, *s.usersMap) {
-
-		if s.IsUserOnVacation(userId) {
-			defaultButtons = append(defaultButtons, tg.NewInlineKeyboardButtonData(constants.ButtonTextConstants.ReturnToWork, string(ReturnToWork)))
-		} else {
-			defaultButtons = append(defaultButtons, tg.NewInlineKeyboardButtonData(constants.ButtonTextConstants.TakeVacation, string(TakeVacation)))
-		}
-	}
-
-	// Показываем админ-кнопки только админам
-	if access.HasAdminAccess(userId, *s.usersMap) {
-		defaultButtons = append(defaultButtons,
-			tg.NewInlineKeyboardButtonData("📋 Список отпусков", string(VacationList)),
-			tg.NewInlineKeyboardButtonData("➕ Отправить в отпуск", string(SendToVacation)))
-	}
-
-	keyboard := tg.NewInlineKeyboardMarkup(
-		tg.NewInlineKeyboardRow(defaultButtons...),
-		tg.NewInlineKeyboardRow(tg.NewInlineKeyboardButtonData(constants.ButtonTextConstants.Cancel, string(CancelDate))),
-	)
-	return keyboard
 }

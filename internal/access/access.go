@@ -104,7 +104,7 @@ func IsUserHasAccess(userId int64, users Users) bool {
 	return false
 }
 
-func IsUserHasAccessToCommand(userId int64, command string, users Users) bool {
+func IsUserHasAccessToCommand(userId int64, command constants.BotCommand, users Users) bool {
 	availableRoles := CommandToRoleMapping[command]
 	usersRoles := users[userId].Roles
 	for _, role := range usersRoles {
@@ -113,10 +113,6 @@ func IsUserHasAccessToCommand(userId int64, command string, users Users) bool {
 		}
 	}
 	return false
-}
-
-func IsUserHasAccessToButton(userId int64, text string, users Users) {
-	//TODO: имплементировать
 }
 
 func ParseUserIds(envName string) (UserIds, error) {
@@ -134,32 +130,11 @@ func ParseUserIds(envName string) (UserIds, error) {
 	return userIds, nil
 }
 
-func isUserInMap(userId int64, userMap UserIds) bool {
-	_, exists := userMap[userId]
-	return exists
-}
-
-func IsAdmin(userID int64, maps UserMaps) bool {
-	return isUserInMap(userID, maps.AdminsIdsMap)
-}
-
-func IsReviewer(userId int64, maps UserMaps) bool {
-	return isUserInMap(userId, maps.ReviewersIdsMap)
-}
-
-func HasVacationAccess(userId int64, maps UserMaps) bool {
-	return IsReviewer(userId, maps)
-}
-
-func HasAdminAccess(userId int64, maps UserMaps) bool {
-	return IsAdmin(userId, maps)
-}
-
-var CommandToRoleMapping = map[string][]constants.UserRole{
+var CommandToRoleMapping = map[constants.BotCommand][]constants.UserRole{
 	constants.Start:            []constants.UserRole{constants.Admin, constants.Tester, constants.Reviewer},
 	constants.TakeVacation:     []constants.UserRole{constants.Reviewer},
 	constants.ReturnToWork:     []constants.UserRole{constants.Reviewer},
 	constants.VacationsList:    []constants.UserRole{constants.Admin},
-	constants.SendOnVacation:   []constants.UserRole{constants.Admin},
+	constants.SendToVacation:   []constants.UserRole{constants.Admin},
 	constants.TestTakeVacation: []constants.UserRole{constants.Tester, constants.Admin},
 }
