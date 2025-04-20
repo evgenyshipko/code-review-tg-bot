@@ -59,7 +59,7 @@ func addUsers(users Users, userIds UserIds, role constants.UserRole) {
 	}
 }
 
-func InitUserMaps() (*UserMaps, error) {
+func GetReviewersMap() (*UserIds, error) {
 	var err error
 
 	ReviewersIdsMap, err := ParseUserIds("REVIEW_PARTICIPANTS_IDS")
@@ -68,16 +68,7 @@ func InitUserMaps() (*UserMaps, error) {
 		return nil, err
 	}
 
-	AdminsIdsMap, err := ParseUserIds("ADMINS_IDS")
-	if err != nil {
-		logger.Instance.Error("Ошибка при парсинге списка администраторов", "error", err)
-		return nil, err
-	}
-
-	return &UserMaps{
-		ReviewersIdsMap: ReviewersIdsMap,
-		AdminsIdsMap:    AdminsIdsMap,
-	}, nil
+	return &ReviewersIdsMap, nil
 }
 
 func IsUserHasAccess(userId int64, users Users) bool {

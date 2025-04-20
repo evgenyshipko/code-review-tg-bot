@@ -15,15 +15,17 @@ type StoryService struct {
 	vacationService *vacation.VacationService
 	bot             *tg.BotAPI
 	Users           *access.Users
+	ReviewersIds    *access.UserIds
 }
 
-func NewStoryService(storage storage.Storage, stories []Story, vacationService *vacation.VacationService, bot *tg.BotAPI, users *access.Users) *StoryService {
+func NewStoryService(storage storage.Storage, stories []Story, vacationService *vacation.VacationService, bot *tg.BotAPI, users *access.Users, reviewersIds *access.UserIds) *StoryService {
 	return &StoryService{
 		storage:         storage,
 		stories:         stories,
 		vacationService: vacationService,
 		bot:             bot,
 		Users:           users,
+		ReviewersIds:    reviewersIds,
 	}
 }
 

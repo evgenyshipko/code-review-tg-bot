@@ -12,18 +12,18 @@ import (
 )
 
 type VacationService struct {
-	storage  storage.Storage
-	bot      *tg.BotAPI
-	UsersMap *access.UserMaps
-	users    *access.Users
+	storage     storage.Storage
+	bot         *tg.BotAPI
+	users       *access.Users
+	ReviewerIds *access.UserIds
 }
 
-func NewVacationService(storage storage.Storage, bot *tg.BotAPI, usersMap *access.UserMaps, users *access.Users) *VacationService {
+func NewVacationService(storage storage.Storage, bot *tg.BotAPI, reviewerIds *access.UserIds, users *access.Users) *VacationService {
 	return &VacationService{
-		storage:  storage,
-		bot:      bot,
-		UsersMap: usersMap,
-		users:    users,
+		storage:     storage,
+		bot:         bot,
+		ReviewerIds: reviewerIds,
+		users:       users,
 	}
 }
 
@@ -73,12 +73,9 @@ type UserData struct {
 }
 
 func (s *VacationService) GetUsersInVacation() []UserData {
-
 	var users []UserData
 
-	reviewers := s.UsersMap.ReviewersIdsMap
-
-	for userId, userNameFromEnv := range reviewers {
+	for userId, userNameFromEnv := range *s.ReviewerIds {
 		if s.IsUserOnVacation(userId) {
 			returnDate := s.GetVacationReturnDate(userId)
 			users = append(users, UserData{
@@ -103,11 +100,7 @@ func (s *VacationService) GetUsersInVacationMessage(users []UserData) string {
 func (s *VacationService) StartVacation(userId int64, returnDate time.Time) error {
 	now := time.Now()
 
-	// TODO: разобраться с этим странным комментарием ниже
-	// Для обычного отпуска обнуляем время
-	if returnDate.Sub(now) > 24*time.Hour {
-		returnDate = time.Date(returnDate.Year(), returnDate.Month(), returnDate.Day(), 0, 0, 0, 0, now.Location())
-	}
+	returnDate = time.Date(returnDate.Year(), returnDate.Month(), returnDate.Day(), 0, 0, 0, 0, now.Location())
 
 	ttl := returnDate.Sub(now)
 

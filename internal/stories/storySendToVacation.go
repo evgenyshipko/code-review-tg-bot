@@ -9,9 +9,7 @@ import (
 )
 
 var getUsersKeyboardCb = func(update tg.Update, s *StoryService) ExecutionStatus {
-	allUsers := s.vacationService.UsersMap.ReviewersIdsMap
-
-	keyboard := s.vacationService.CreateUsersKeyboard(allUsers)
+	keyboard := s.vacationService.CreateUsersKeyboard(*s.ReviewersIds)
 	msg := tg.NewMessage(update.Message.Chat.ID, "Выберите пользователя:")
 	msg.ReplyMarkup = keyboard
 	msg.ReplyToMessageID = update.Message.MessageID
@@ -38,11 +36,8 @@ var handlePickUserOnKeyboardCb = func(update tg.Update, s *StoryService) Executi
 
 	selectedFullName := strings.TrimPrefix(update.Message.Text, prefix)
 
-	//TODO: перенести userMaps в storyService
-	allUsers := s.vacationService.UsersMap.ReviewersIdsMap
-
 	var selectedUserId int64
-	for uid, userNameFromEnv := range allUsers {
+	for uid, userNameFromEnv := range *s.ReviewersIds {
 		if userNameFromEnv == selectedFullName {
 			selectedUserId = uid
 			break

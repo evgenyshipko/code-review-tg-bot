@@ -39,9 +39,8 @@ var ShowDatesKeyboardStageCb = func(update tg.Update, s *StoryService) Execution
 }
 
 var PickKeyboardDateCb = func(update tg.Update, s *StoryService) ExecutionStatus {
-
-	var message *tg.Message = update.Message
-	var text string = message.Text
+	message := update.Message
+	text := message.Text
 
 	if text == constants.ButtonTextConstants.Cancel {
 		msg := tg.NewMessage(message.Chat.ID, "завершение процесса выбора даты")
@@ -51,9 +50,6 @@ var PickKeyboardDateCb = func(update tg.Update, s *StoryService) ExecutionStatus
 		return Dropped
 	}
 
-	logger.Instance.Infow("PickKeyboardDateCb", "message", message)
-
-	//TODO: вынести валидацию даты в отдельную функцию
 	returnDate, err := time.Parse(constants.DateFormatLayout, text)
 
 	if err != nil {

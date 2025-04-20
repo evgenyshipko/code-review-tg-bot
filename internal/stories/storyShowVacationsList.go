@@ -51,8 +51,7 @@ var PushVacationKeyboardStageCb = func(update tg.Update, s *StoryService) Execut
 	if strings.HasPrefix(update.Message.Text, constants.ButtonTextConstants.ReturnFromVacation) {
 		userName := strings.TrimPrefix(update.Message.Text, constants.ButtonTextConstants.ReturnFromVacation)
 
-		allUsers := s.vacationService.UsersMap.ReviewersIdsMap
-		foundUserId := s.vacationService.FindVacationUserIdByName(allUsers, userName)
+		foundUserId := s.vacationService.FindVacationUserIdByName(*s.ReviewersIds, userName)
 
 		if foundUserId == 0 {
 			logger.Instance.Warnf("HandleVacationListPushBtnCb пользователь %s не найден", userName)
@@ -66,9 +65,7 @@ var PushVacationKeyboardStageCb = func(update tg.Update, s *StoryService) Execut
 	if strings.HasPrefix(update.Message.Text, constants.ButtonTextConstants.ChangeVacation) {
 		userName := strings.TrimPrefix(update.Message.Text, constants.ButtonTextConstants.ChangeVacation)
 
-		allUsers := s.vacationService.UsersMap.ReviewersIdsMap
-
-		foundUserId := s.vacationService.FindVacationUserIdByName(allUsers, userName)
+		foundUserId := s.vacationService.FindVacationUserIdByName(*s.ReviewersIds, userName)
 		if foundUserId == 0 {
 			logger.Instance.Warnf("HandleVacationListPushBtnCb пользователь %s не найден", userName)
 			return Dropped
@@ -111,8 +108,6 @@ var AdminSetVacationCb = func(update tg.Update, s *StoryService) ExecutionStatus
 		return NotExecuted
 	}
 
-	allUsers := s.vacationService.UsersMap.ReviewersIdsMap
-
 	pickedUserId, err := getPickedUserIdFromExtraData(s, update.Message.From.ID)
 	if err != nil {
 		logger.Instance.Warn("getCurrentStoryExtraData", "err", err)
@@ -120,7 +115,7 @@ var AdminSetVacationCb = func(update tg.Update, s *StoryService) ExecutionStatus
 	}
 
 	var username string
-	for uid, userNameFromEnv := range allUsers {
+	for uid, userNameFromEnv := range *s.ReviewersIds {
 		if uid == pickedUserId {
 			username = userNameFromEnv
 			break

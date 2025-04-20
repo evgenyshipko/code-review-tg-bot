@@ -54,9 +54,7 @@ func CreateDateKeyboard(dates []string) tg.ReplyKeyboardMarkup {
 func (s *VacationService) CreateVacationsListKeyboard() ([][]tg.KeyboardButton, error) {
 	var buttons [][]tg.KeyboardButton
 
-	allUsers := s.UsersMap.ReviewersIdsMap
-
-	for userId, userName := range allUsers {
+	for userId, userName := range *s.ReviewerIds {
 		if s.IsUserOnVacation(userId) {
 			buttons = append(buttons,
 				[]tg.KeyboardButton{

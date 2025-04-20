@@ -35,8 +35,7 @@ func main() {
 	}
 	logger.Instance.Info(users)
 
-	// TODO: избавиться от userMaps
-	userMaps, err := access.InitUserMaps()
+	reviewersMap, err := access.GetReviewersMap()
 	if err != nil {
 		logger.Instance.Errorw("Ошибка инициализации списков пользователей", "error", err)
 		os.Exit(1)
@@ -55,10 +54,12 @@ func main() {
 		panic(err)
 	}
 
-	vacationService := vacation.NewVacationService(storageInstance, bot, userMaps, &users)
+	vacationService := vacation.NewVacationService(storageInstance, bot, reviewersMap, &users)
 	reviewersService := reviewers.NewReviewersService(storageInstance, vacationService)
 	mergeRequestService := mergeRequest.NewMergeRequestService(bot, reviewersService)
-	storyService := stories.NewStoryService(storageInstance, []stories.Story{*stories.TakeVacationStory, *stories.ReturnToWorkStory, *stories.ShowVacationListStory, *stories.SendToVacationStory}, vacationService, bot, &users)
+
+	storiesArr := []stories.Story{*stories.TakeVacationStory, *stories.ReturnToWorkStory, *stories.ShowVacationListStory, *stories.SendToVacationStory}
+	storyService := stories.NewStoryService(storageInstance, storiesArr, vacationService, bot, &users, reviewersMap)
 
 	if err := setUpBotCommands(bot); err != nil {
 		logger.Instance.Error("Ошибка настройки команд бота", "error", err)
@@ -73,10 +74,7 @@ func main() {
 
 	// ЗАПОМНИТЬ: цикл работает пока канал не закрыт
 	for update := range updates {
-		if !access.IsUserHasAccess(update.Message.From.ID, users) {
-			return
-		}
-		mainLoopFunc(update, bot, mergeRequestService, storyService)
+		userInputHandler(update, bot, mergeRequestService, storyService)
 	}
 }
 
@@ -84,16 +82,19 @@ func main() {
 //TODO: избавиться от переменной GITLAB_DOMAIN?
 //TODO: кеширование ручек/истории ревью во внешнем источнике (редис)
 //TODO: сделать чтобы бот проставлял ревьюверов в гитлабе
-//TODO: предусмотреть возможность передачи множества сервисов в mainLoopFunc
 
 // TODO: вынести из main
-func mainLoopFunc(update tg.Update, bot *tg.BotAPI, mr *mergeRequest.MergeRequestService, storyService *stories.StoryService) {
+func userInputHandler(update tg.Update, bot *tg.BotAPI, mr *mergeRequest.MergeRequestService, storyService *stories.StoryService) {
 	defer func() {
 		if r := recover(); r != nil {
 			logger.Instance.Error("Паника перехвачена", "error", r)
 			sendNewMessage(fmt.Sprintf("Что-то пошло не так: %s", r), bot, update)
 		}
 	}()
+
+	if !access.IsUserHasAccess(update.Message.From.ID, *storyService.Users) {
+		return
+	}
 
 	userId := update.Message.From.ID
 	message := update.Message
@@ -102,13 +103,13 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI, mr *mergeRequest.MergeReques
 		logger.Instance.Infow(fmt.Sprintf("[%s] %s", message.From.UserName, message.Text))
 	}
 
+	// Если у пользователя есть активная история, то работаем в ее рамках
 	executed := storyService.HandleCurrentStories(update, userId)
 	if executed {
 		return
 	}
 
 	if message.IsCommand() {
-
 		command := constants.BotCommand(message.Command())
 		if !access.IsUserHasAccessToCommand(update.Message.From.ID, command, *storyService.Users) {
 			msg := tg.NewMessage(update.Message.Chat.ID, "У Вас нет доступа к данной команде")
