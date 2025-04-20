@@ -14,7 +14,6 @@ type Role string
 type UserMaps struct {
 	ReviewersIdsMap UserIds
 	AdminsIdsMap    UserIds
-	TestersIdsMap   UserIds
 }
 
 type UserData struct {
@@ -37,15 +36,9 @@ func MapUserToRoles() (Users, error) {
 		logger.Instance.Error("Ошибка при парсинге списка администраторов", "error", err)
 	}
 
-	TestersIdsMap, err := ParseUserIds("TESTERS_IDS")
-	if err != nil {
-		logger.Instance.Error("Ошибка при парсинге списка тестировщиков", "error", err)
-	}
-
 	users := Users{}
 	addUsers(users, ReviewersIdsMap, constants.Reviewer)
 	addUsers(users, AdminsIdsMap, constants.Admin)
-	addUsers(users, TestersIdsMap, constants.Tester)
 	return users, nil
 }
 
@@ -81,15 +74,9 @@ func InitUserMaps() (*UserMaps, error) {
 		return nil, err
 	}
 
-	TestersIdsMap, err := ParseUserIds("TESTERS_IDS")
-	if err != nil {
-		logger.Instance.Error("Ошибка при парсинге списка тестировщиков", "error", err)
-	}
-
 	return &UserMaps{
 		ReviewersIdsMap: ReviewersIdsMap,
 		AdminsIdsMap:    AdminsIdsMap,
-		TestersIdsMap:   TestersIdsMap,
 	}, nil
 }
 
@@ -131,10 +118,10 @@ func ParseUserIds(envName string) (UserIds, error) {
 }
 
 var CommandToRoleMapping = map[constants.BotCommand][]constants.UserRole{
-	constants.Start:            []constants.UserRole{constants.Admin, constants.Tester, constants.Reviewer},
+	constants.Start:            []constants.UserRole{constants.Admin, constants.Reviewer},
 	constants.TakeVacation:     []constants.UserRole{constants.Reviewer},
 	constants.ReturnToWork:     []constants.UserRole{constants.Reviewer},
 	constants.VacationsList:    []constants.UserRole{constants.Admin},
 	constants.SendToVacation:   []constants.UserRole{constants.Admin},
-	constants.TestTakeVacation: []constants.UserRole{constants.Tester, constants.Admin},
+	constants.TestTakeVacation: []constants.UserRole{constants.Admin},
 }

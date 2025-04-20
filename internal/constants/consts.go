@@ -28,7 +28,6 @@ var ButtonTextConstants = ButtonText{
 type UserRole string
 
 const (
-	Tester   UserRole = "Tester"
 	Reviewer UserRole = "Reviewer"
 	Admin    UserRole = "Admin"
 )

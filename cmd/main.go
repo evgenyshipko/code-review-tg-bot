@@ -60,7 +60,7 @@ func main() {
 	mergeRequestService := mergeRequest.NewMergeRequestService(bot, reviewersService)
 	storyService := stories.NewStoryService(storageInstance, []stories.Story{*stories.TakeVacationStory, *stories.ReturnToWorkStory, *stories.ShowVacationListStory, *stories.SendToVacationStory}, vacationService, bot, &users)
 
-	if err := setUpBotCommands(bot, constants.BotCommands); err != nil {
+	if err := setUpBotCommands(bot); err != nil {
 		logger.Instance.Error("Ошибка настройки команд бота", "error", err)
 		os.Exit(1)
 	}
@@ -119,7 +119,6 @@ func mainLoopFunc(update tg.Update, bot *tg.BotAPI, mr *mergeRequest.MergeReques
 
 		switch command {
 		case constants.TakeVacation:
-
 			storyService.ExecuteStory(stories.TakeVacationStory, nil, update, userId)
 		case constants.ReturnToWork:
 			storyService.ExecuteStory(stories.ReturnToWorkStory, nil, update, userId)
@@ -153,8 +152,8 @@ func sendNewMessage(message string, bot *tg.BotAPI, update tg.Update) {
 }
 
 // TODO: вынести из main
-func setUpBotCommands(bot *tg.BotAPI, vacationCommands []tg.BotCommand) error {
-	_, err := bot.Request(tg.NewSetMyCommands(vacationCommands...))
+func setUpBotCommands(bot *tg.BotAPI) error {
+	_, err := bot.Request(tg.NewSetMyCommands(constants.BotCommands...))
 	if err != nil {
 		return fmt.Errorf("ошибка установки команд бота: %w", err)
 	}
