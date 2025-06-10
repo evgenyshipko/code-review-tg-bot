@@ -16,7 +16,7 @@ import (
 func ParseGitlabURL(url1 string) (encodedQueryPathProject string, mergeRequestId int, commitHash string, err error) {
 	gitlabDomain := os.Getenv("GITLAB_DOMAIN")
 
-	regex := fmt.Sprintf(`https:\/\/%s\/([a-zA-Z-/]+)\/([a-zA-Z-]+)\/-\/merge_requests\/(\d+)(?:\/diffs\?commit_id=([a-f0-9]+))?.*`, gitlabDomain)
+	regex := fmt.Sprintf(`https:\/\/%s\/([0-9a-zA-Z-_/]+)\/([0-9a-zA-Z-_]+)\/-\/merge_requests\/(\d+)(?:\/diffs\?commit_id=([a-f0-9]+))?.*`, gitlabDomain)
 
 	re := regexp.MustCompile(regex)
 	match := re.FindStringSubmatch(url1)
