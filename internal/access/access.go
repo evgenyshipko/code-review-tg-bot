@@ -83,7 +83,7 @@ func IsUserHasAccess(userId int64, users Users) bool {
 }
 
 func IsUserHasAccessToCommand(userId int64, command constants.BotCommand, users Users) bool {
-	availableRoles := CommandToRoleMapping[command]
+	availableRoles := commandToRoleMapping[command]
 	usersRoles := users[userId].Roles
 	for _, role := range usersRoles {
 		if slices.Contains(availableRoles, role) {
@@ -108,7 +108,7 @@ func ParseUserIds(envName string) (UserIds, error) {
 	return userIds, nil
 }
 
-var CommandToRoleMapping = map[constants.BotCommand][]constants.UserRole{
+var commandToRoleMapping = map[constants.BotCommand][]constants.UserRole{
 	constants.Start:            []constants.UserRole{constants.Admin, constants.Reviewer},
 	constants.TakeVacation:     []constants.UserRole{constants.Reviewer},
 	constants.ReturnToWork:     []constants.UserRole{constants.Reviewer},
