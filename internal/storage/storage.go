@@ -25,14 +25,13 @@ func InitStorage() (Storage, error) {
 		return NewMemoryStorage(), nil
 	}
 
-	err = redis.Init()
+	client, err := redis.InitRedisClient()
 	if err != nil {
 		logger.Instance.Error("Ошибка инициализации Redis", "error", err)
 		return nil, err
-
 	}
 
 	logger.Instance.Info("Успешная инициализации Redis")
-	return NewRedisStorage(redis.GetClient()), nil
+	return NewRedisStorage(client), nil
 
 }

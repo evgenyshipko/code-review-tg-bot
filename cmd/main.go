@@ -23,6 +23,39 @@ func init() {
 }
 
 func main() {
+	BotToken := os.Getenv("BOT_TOKEN")
+
+	err := tg.SetLogger(logger.Instance)
+	if err != nil {
+		panic(err)
+	}
+
+	bot, err := tg.NewBotAPI(BotToken)
+	if err != nil {
+		logger.Instance.Error(err.Error())
+		panic(err)
+	}
+
+	mergeRequestService, storyService := InitServices(bot)
+	
+	if err := setUpBotCommands(bot); err != nil {
+		logger.Instance.Error("Ошибка настройки команд бота", "error", err)
+		os.Exit(1)
+	}
+
+	bot.Debug = true
+
+	u := tg.NewUpdate(0)
+	u.Timeout = 60
+	updates := bot.GetUpdatesChan(u)
+
+	// ЗАПОМНИТЬ: цикл работает пока канал не закрыт
+	for update := range updates {
+		userInputHandler(update, bot, mergeRequestService, storyService)
+	}
+}
+
+func InitServices(bot *tg.BotAPI) (*mergeRequest.MergeRequestService, *stories.StoryService) {
 	storageInstance, err := storage.InitStorage()
 	if err != nil {
 		logger.Instance.Errorw("Ошибка инициализации хранилища", "error", err)
@@ -41,16 +74,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	BotToken := os.Getenv("BOT_TOKEN")
-
 	err = tg.SetLogger(logger.Instance)
 	if err != nil {
-		panic(err)
-	}
-
-	bot, err := tg.NewBotAPI(BotToken)
-	if err != nil {
-		logger.Instance.Error(err.Error())
 		panic(err)
 	}
 
@@ -60,22 +85,7 @@ func main() {
 
 	storiesArr := []stories.Story{*stories.TakeVacationStory, *stories.ReturnToWorkStory, *stories.ShowVacationListStory, *stories.SendToVacationStory}
 	storyService := stories.NewStoryService(storageInstance, storiesArr, vacationService, bot, &users, reviewersMap)
-
-	if err := setUpBotCommands(bot); err != nil {
-		logger.Instance.Error("Ошибка настройки команд бота", "error", err)
-		os.Exit(1)
-	}
-
-	bot.Debug = true
-
-	u := tg.NewUpdate(0)
-	u.Timeout = 60
-	updates := bot.GetUpdatesChan(u)
-
-	// ЗАПОМНИТЬ: цикл работает пока канал не закрыт
-	for update := range updates {
-		userInputHandler(update, bot, mergeRequestService, storyService)
-	}
+	return mergeRequestService, storyService
 }
 
 //TODO: валидация енвов при запуске (в том числе бот сейчас не заводится без ADMINS_IDS)
